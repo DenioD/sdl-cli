@@ -29,7 +29,7 @@ Run `silentdragonlite-cli help` to see a list of all commands.
 * Also remember that t-addresses don't provide any privacy protection.
 
 ## Notes:
-* If you want to run your own server, please see [SilentDragonLite-cli lightwalletd](https://github.com/MyHush/lightwalletd), and then run `./silentdragonlite-cli --server http://127.0.0.1:9069`. You might also need to pass `--dangerous` if you are using a self-signed  TLS certificate.
+* If you want to run your own server, please see [SilentDragonLite-cli lightwalletd](https://git.hush.is/hush/lightwalletd), and then run `./silentdragonlite-cli --server http://127.0.0.1:9069`. You might also need to pass `--dangerous` if you are using a self-signed  TLS certificate.
 
 * The log file is in `~/.silentdragonlite/silentdragonlite-cli.debug.log`. Wallet is stored in `~/.silentdragonlite/silentdragonlite-cli.dat`
 
@@ -48,7 +48,7 @@ silentdragonlite does automatic note and utxo management, which means it doesn't
     * Run `rustup update` to get the latest version of Rust if you already have it installed
 
 ```
-git clone https://github.com/MyHush/silentdragonlite-cli.git
+git clone https://git.hush.is/hush/silentdragonlite-cli
 cargo build --release
 ./target/release/silentdragonlite-cli
 ```
@@ -64,4 +64,4 @@ Here are some CLI arguments you can pass to `silentdragonlite-cli`. Please run `
  
 ### Support
 
-For support or other questions, join us on [Discord](https://myhush.org/discord), or tweet at [@MyHushTeam](https://twitter.com/MyHushTeam), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join [Telegram](http://myhush.org/telegram) or [file an issue](https://github.com/MyHush/silentdragonlite-cli/issues).
+For support or other questions, join us on [Telegram](https://hush.is/telegram), or tweet at [@MyHushTeam](https://twitter.com/MyHushTeam), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join [Telegram Support](https://hush.is/telegram_support) or [file an issue](https://git.hush.is/hush/silentdragonlite-cli/issues).
