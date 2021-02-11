@@ -54,7 +54,7 @@ cargo build --release
 ```
 
 ## Options
-Here are some CLI arguments you can pass to silentdragonlite-cli. Please run silentdragonlite-cli --help for the full list.
+Here are some CLI arguments you can pass to `silentdragonlite-cli`. Please run `silentdragonlite-cli --help` for the full list.
 
 * `--server`: Connect to a custom SilentDragonLite lightwalletd server. 
     * Example: `./silentdragonlite-cli --server 127.0.0.1:9069`
