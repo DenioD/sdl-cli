@@ -47,21 +47,23 @@ silentdragonlite does automatic note and utxo management, which means it doesn't
 * Rust v1.37 or higher.
     * Run `rustup update` to get the latest version of Rust if you already have it installed
 
-```
+```shell script
 git clone https://git.hush.is/hush/silentdragonlite-cli
 cargo build --release
 ./target/release/silentdragonlite-cli
 ```
 
 ## Options
-Here are some CLI arguments you can pass to `silentdragonlite-cli`. Please run `silentdragonlite-cli --help` for the full list. 
+Here are some CLI arguments you can pass to silentdragonlite-cli. Please run silentdragonlite-cli --help for the full list.
 
 * `--server`: Connect to a custom SilentDragonLite lightwalletd server. 
     * Example: `./silentdragonlite-cli --server 127.0.0.1:9069`
+    * Example: `./silentdragonlite-cli --server lite.hush.is`
 * `--seed`: Restore a wallet from a seed phrase. Note that this will fail if there is an existing wallet. Delete (or move) any existing wallet to restore from the 24-word seed phrase
     * Example: `./silentdragonlite-cli --seed "twenty four words seed phrase"`
  * `--recover`: Attempt to recover the seed phrase from a corrupted wallet
- 
+* `-n, --nosync`: By default, Silentdragonlite-cli will sync the wallet at startup, so use this option to prevent the automatic sync at startup
+
 ### Support
 
 For support or other questions, join us on [Telegram](https://hush.is/telegram), or tweet at [@MyHushTeam](https://twitter.com/MyHushTeam), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join [Telegram Support](https://hush.is/telegram_support) or [file an issue](https://git.hush.is/hush/silentdragonlite-cli/issues).
