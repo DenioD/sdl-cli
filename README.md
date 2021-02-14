@@ -64,4 +64,4 @@ Here are some CLI arguments you can pass to `silentdragonlite-cli`. Please run `
  
 ### Support
 
-For support or other questions, join us on [Discord](https://myhush.org/discord), or tweet at [@MyHushTeam](https://twitter.com/MyHushTeam), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join [Telegram](http://myhush.org/telegram) or [file an issue](https://github.com/MyHush/silentdragonlite-cli/issues).
+For support or other questions, join us on Twitter at [@MyHushTeam](https://twitter.com/MyHushTeam), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join [Telegram](http://myhush.org/telegram)
