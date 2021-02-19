@@ -49,6 +49,7 @@ silentdragonlite does automatic note and utxo management, which means it doesn't
 
 ```shell script
 git clone https://git.hush.is/hush/silentdragonlite-cli
+cd silentdragonlite-cli
 cargo build --release
 ./target/release/silentdragonlite-cli
 ```
