@@ -42,34 +42,34 @@ webpki = "0.21.0"
 webpki-roots = "0.18.0"
 
 [dependencies.bellman]
-git = "https://github.com/MyHush/librustzcash.git"
+git = "https://git.hush.is/hush/librustzcash.git"
 rev= "1a0204113d487cdaaf183c2967010e5214ff9e37"
 default-features = false
 features = ["groth16"]
 
 [dependencies.pairing]
-git = "https://github.com/MyHush/librustzcash.git"
+git = "https://git.hush.is/hush/librustzcash.git"
 rev= "1a0204113d487cdaaf183c2967010e5214ff9e37"
 
 [dependencies.zcash_client_backend]
-git = "https://github.com/MyHush/librustzcash.git"
+git = "https://git.hush.is/hush/librustzcash.git"
 rev= "1a0204113d487cdaaf183c2967010e5214ff9e37"
 
 default-features = false
 
 [dependencies.zcash_primitives]
-git = "https://github.com/MyHush/librustzcash.git"
+git = "https://git.hush.is/hush/librustzcash.git"
 rev= "1a0204113d487cdaaf183c2967010e5214ff9e37"
 default-features = false
 features = ["transparent-inputs"]
 
 [dependencies.zcash_proofs]
-git = "https://github.com/MyHush/librustzcash.git"
+git = "https://git.hush.is/hush/librustzcash.git"
 rev= "1a0204113d487cdaaf183c2967010e5214ff9e37"
 default-features = false
 
 [dependencies.ff]
-git = "https://github.com/MyHush/librustzcash.git"
+git = "https://git.hush.is/hush/librustzcash.git"
 rev= "1a0204113d487cdaaf183c2967010e5214ff9e37"
 features = ["ff_derive"]
 
