@@ -36,7 +36,7 @@ use crate::ANCHOR_OFFSET;
 
 mod checkpoints;
 
-pub const DEFAULT_SERVER: &str = "https://lite.myhush.org";
+pub const DEFAULT_SERVER: &str = "https://lite.hush.community";
 pub const WALLET_NAME: &str    = "silentdragonlite-wallet.dat";
 pub const LOGFILE_NAME: &str   = "silentdragonlite-wallet.debug.log";
 

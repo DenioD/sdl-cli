@@ -684,7 +684,7 @@ impl Command for TImportCommand {
         let mut h = vec![];
         h.push("Import an external WIF");
         h.push("Usage:");
-        h.push("timport wif (Begins with U");
+        h.push("timport wif (Begins with U, 5, K or L");
         h.push("");
 
         h.join("\n")
