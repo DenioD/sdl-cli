@@ -29,7 +29,7 @@ Run `silentdragonlite-cli help` to see a list of all commands.
 * Also remember that t-addresses don't provide any privacy protection.
 
 ## Notes:
-* If you want to run your own server, please see [SilentDragonLite-cli lightwalletd](https://github.com/MyHush/lightwalletd), and then run `./silentdragonlite-cli --server http://127.0.0.1:9069`. You might also need to pass `--dangerous` if you are using a self-signed  TLS certificate.
+* If you want to run your own server, please see [SilentDragonLite-cli lightwalletd](https://git.hush.is/hush/lightwalletd), and then run `./silentdragonlite-cli --server http://127.0.0.1:9069`. You might also need to pass `--dangerous` if you are using a self-signed  TLS certificate.
 
 * The log file is in `~/.silentdragonlite/silentdragonlite-cli.debug.log`. Wallet is stored in `~/.silentdragonlite/silentdragonlite-cli.dat`
 
@@ -47,21 +47,29 @@ silentdragonlite does automatic note and utxo management, which means it doesn't
 * Rust v1.37 or higher.
     * Run `rustup update` to get the latest version of Rust if you already have it installed
 
-```
-git clone https://github.com/MyHush/silentdragonlite-cli.git
+```shell script
+git clone https://git.hush.is/hush/silentdragonlite-cli
+cd silentdragonlite-cli
 cargo build --release
 ./target/release/silentdragonlite-cli
 ```
 
 ## Options
-Here are some CLI arguments you can pass to `silentdragonlite-cli`. Please run `silentdragonlite-cli --help` for the full list. 
+Here are some CLI arguments you can pass to `silentdragonlite-cli`. Please run `silentdragonlite-cli --help` for the full list.
 
 * `--server`: Connect to a custom SilentDragonLite lightwalletd server. 
     * Example: `./silentdragonlite-cli --server 127.0.0.1:9069`
+    * Example: `./silentdragonlite-cli --server lite.hush.is`
 * `--seed`: Restore a wallet from a seed phrase. Note that this will fail if there is an existing wallet. Delete (or move) any existing wallet to restore from the 24-word seed phrase
     * Example: `./silentdragonlite-cli --seed "twenty four words seed phrase"`
  * `--recover`: Attempt to recover the seed phrase from a corrupted wallet
- 
+* `-n, --nosync`: By default, Silentdragonlite-cli will sync the wallet at startup, so use this option to prevent the automatic sync at startup
+
 ### Support
 
-For support or other questions, join us on Twitter at [@MyHushTeam](https://twitter.com/MyHushTeam), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join [Telegram](http://myhush.org/telegram)
+For support or other questions, join us on [Telegram](https://hush.is/telegram), or tweet at [@MyHushTeam](https://twitter.com/MyHushTeam), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join [Telegram Support](https://hush.is/telegram_support) or [file an issue](https://git.hush.is/hush/silentdragonlite-cli/issues).
+
+
+## License
+
+GPLv3 or later
