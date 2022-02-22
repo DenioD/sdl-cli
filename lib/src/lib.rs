@@ -1,3 +1,5 @@
+// Copyright The Hush Developers  2019-2022
+// Released under the GPLv3
 #[macro_use]
 extern crate rust_embed;
 

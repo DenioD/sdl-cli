@@ -69,6 +69,9 @@ Here are some CLI arguments you can pass to `silentdragonlite-cli`. Please run `
 
 For support or other questions, join us on [Telegram](https://hush.is/telegram), or tweet at [@MyHushTeam](https://twitter.com/MyHushTeam), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join [Telegram Support](https://hush.is/telegram_support) or [file an issue](https://git.hush.is/hush/silentdragonlite-cli/issues).
 
+## Copyright
+
+Copyright The Hush Developers 2019-2022
 
 ## License
 

@@ -1,3 +1,5 @@
+// Copyright The Hush Developers  2019-2022
+// Released under the GPLv3
 use std::collections::HashMap;
 use json::{object};
 

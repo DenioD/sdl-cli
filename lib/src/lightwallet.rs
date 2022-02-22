@@ -1,3 +1,5 @@
+// Copyright The Hush Developers  2019-2022
+// Released under the GPLv3
 use std::time::{SystemTime, Duration};
 use std::io::{self, Read, Write};
 use std::cmp;
@@ -1399,7 +1401,7 @@ impl LightWallet {
                 };
 
                 if memo.to_utf8().is_some() {
-                    info!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
+                    // info!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
 
                     // Do it in a short scope because of the write lock.   
                     let mut txs = self.txs.write().unwrap();
@@ -1911,7 +1913,7 @@ impl LightWallet {
             // Mark notes as spent.
             let mut total_shielded_value_spent: u64 = 0;
 
-            info!("Txid {} belongs to wallet", tx.txid);
+            //info!("Txid {} belongs to wallet", tx.txid);
 
             for spend in &tx.shielded_spends {                
                 let txid = nfs
@@ -1949,7 +1951,7 @@ impl LightWallet {
                 let new_note = SaplingNoteData::new(&self.zkeys.read().unwrap()[output.account].extfvk, output);
                 match LightWallet::note_address(self.config.hrp_sapling_address(), &new_note) {
                     Some(a) => {
-                        info!("Received sapling output to {}", a);
+                        // info!("Received sapling output to {}", a);
                         self.ensure_hd_zaddresses(&a);
                     },
                     None => {}

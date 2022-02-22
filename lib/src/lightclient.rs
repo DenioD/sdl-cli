@@ -1,3 +1,5 @@
+// Copyright The Hush Developers  2019-2022
+// Released under the GPLv3
 use crate::lightwallet::LightWallet;
 
 use std::sync::{Arc, RwLock, Mutex, mpsc::channel};
@@ -1473,7 +1475,7 @@ impl LightClient {
                 let no_cert =  self.config.no_cert_verification;
     
                 pool.execute(move || {
-                    info!("Fetching full Tx: {}", txid);
+                    //info!("Fetching full Tx: {}", txid);
 
                     match fetch_full_tx(&server_uri, txid, no_cert) {
                         Ok(tx_bytes) => {
