@@ -1,3 +1,5 @@
+// Copyright The Hush Developers  2019-2022
+// Released under the GPLv3
 use log::{error};
 use std::sync::Arc;
 use zcash_primitives::transaction::{TxId};
