@@ -1,21 +1,6 @@
 # SilentDragonLite CLI
 
-<p align="left">
-    <a href="https://twitter.com/MyHushTeam">
-        <img src="https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Ftwitter.com%2Fmyhushteam"
-            alt="MyHushTeam's Twitter"></a>
-    <a href="https://twitter.com/intent/follow?screen_name=MyHushTeam">
-        <img src="https://img.shields.io/twitter/follow/MyHushTeam?style=social&logo=twitter"
-            alt="follow on Twitter"></a>
-    <a href="https://fosstodon.org/@myhushteam">
-        <img src="https://img.shields.io/badge/Mastodon-MyHushTeam-blue"
-            alt="follow on Mastodon"></a>
-    <a href="https://www.reddit.com/r/Myhush/">
-        <img src="https://img.shields.io/reddit/subreddit-subscribers/Myhush?style=social"
-            alt="MyHushTeam's Reddit"></a>
-</p>
-
-`silentdragonlite-cli` is a command line SilentDragonLite light client. To use it, download the latest binary from the releases page and run `./silentdragonlite-cli`
+`silentdragonlite-cli` is a command line SilentDragonLite light client. To use it, download the latest binary from the releases page and run `./silentdragonlite-cli` or compile it yourself as documented below.
 
 This will launch the interactive prompt. Type `help` to get a list of commands
 
@@ -29,7 +14,7 @@ Run `silentdragonlite-cli help` to see a list of all commands.
 * Also remember that t-addresses don't provide any privacy protection.
 
 ## Notes:
-* If you want to run your own server, please see [SilentDragonLite-cli lightwalletd](https://git.hush.is/hush/lightwalletd), and then run `./silentdragonlite-cli --server http://127.0.0.1:9069`. You might also need to pass `--dangerous` if you are using a self-signed  TLS certificate.
+* If you want to run your own server, please see [SilentDragonLite-cli lightwalletd](https://git.hush.is/hush/lightwalletd), and then run `./silentdragonlite-cli --server http://127.0.0.1:9067`. You might also need to pass `--dangerous` if you are using a self-signed TLS certificate.
 
 * The log file is in `~/.silentdragonlite/silentdragonlite-cli.debug.log`. Wallet is stored in `~/.silentdragonlite/silentdragonlite-cli.dat`
 
@@ -44,8 +29,21 @@ silentdragonlite does automatic note and utxo management, which means it doesn't
 ## Compiling from source
 
 #### Pre-requisites
-* Rust v1.37 or higher.
-    * Run `rustup update` to get the latest version of Rust if you already have it installed
+
+* You need Rust and how you install it will depend on your version of Linux. Below are well known rust versions tested on common Linux distributions.
+
+| Linux Version | Rust Version Tested | Command to install  |
+|---------------|--------|---------------------------|
+| Ubuntu 20.04  | 1.57.0 | sudo apt install rust-all |
+| Debian 11     | 1.50.0 | [USE RUSTUP](https://www.rust-lang.org/tools/install) |
+| Arch Linux    | 1.56.0 | pacman -S rustc cargo     |
+
+* Debian 11 comes with a much older rust compiler (1.48.0) and so you want to use rustup with Debian and install at least 1.50.0.
+* If you're using another Linux distro, then consult their package manager for rustc and cargo, but if it's tool old then you want to [use Rustup](https://www.rust-lang.org/tools/install) to install at least 1.50.0.
+
+#### The compilation
+
+Run the following commands to compile on your computer.
 
 ```shell script
 git clone https://git.hush.is/hush/silentdragonlite-cli
@@ -58,16 +56,16 @@ cargo build --release
 Here are some CLI arguments you can pass to `silentdragonlite-cli`. Please run `silentdragonlite-cli --help` for the full list.
 
 * `--server`: Connect to a custom SilentDragonLite lightwalletd server. 
-    * Example: `./silentdragonlite-cli --server 127.0.0.1:9069`
+    * Example: `./silentdragonlite-cli --server 127.0.0.1:9067`
     * Example: `./silentdragonlite-cli --server lite.hush.is`
-* `--seed`: Restore a wallet from a seed phrase. Note that this will fail if there is an existing wallet. Delete (or move) any existing wallet to restore from the 24-word seed phrase
+* `--seed`: Restore a wallet from a seed phrase. **Note** that this will fail if there is an existing wallet. Delete (or move) any existing wallet to restore from the 24-word seed phrase
     * Example: `./silentdragonlite-cli --seed "twenty four words seed phrase"`
  * `--recover`: Attempt to recover the seed phrase from a corrupted wallet
 * `-n, --nosync`: By default, Silentdragonlite-cli will sync the wallet at startup, so use this option to prevent the automatic sync at startup
 
 ### Support
 
-For support or other questions, join us on [Telegram](https://hush.is/telegram), or tweet at [@MyHushTeam](https://twitter.com/MyHushTeam), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join [Telegram Support](https://hush.is/telegram_support) or [file an issue](https://git.hush.is/hush/silentdragonlite-cli/issues).
+For support or other questions, join us on [Telegram](https://hush.is/telegram), or toot at our [Mastodon](https://fosstodon.org/@myhushteam) or join our [Telegram Support](https://hush.is/telegram_support) or [file an issue](https://git.hush.is/hush/silentdragonlite-cli/issues).
 
 ## Copyright
 
