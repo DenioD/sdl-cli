@@ -212,27 +212,21 @@ pub fn command_loop(lightclient: Arc<LightClient>) -> (Sender<(String, Vec<Strin
 
     let lc = lightclient.clone();
     std::thread::spawn(move || {
+        LightClient::start_mempool_monitor(lc.clone());
+
         loop {
-            match command_rx.recv_timeout(std::time::Duration::from_secs(5 * 60)) {
-                Ok((cmd, args)) => {
-                    let args = args.iter().map(|s| s.as_ref()).collect();
+            if let Ok((cmd, args)) = command_rx.recv() {
+                let args = args.iter().map(|s| s.as_ref()).collect();
 
-                    let cmd_response = commands::do_user_command(&cmd, &args, lc.as_ref());
-                    resp_tx.send(cmd_response).unwrap();
+                let cmd_response = commands::do_user_command(&cmd, &args, lc.as_ref());
+                resp_tx.send(cmd_response).unwrap();
 
-                    if cmd == "quit" {
-                        info!("Quit");
-                        break;
-                    }
-                },
-                Err(_) => {
-                    // Timeout. Do a sync to keep the wallet up-to-date. False to whether to print updates on the console
-                    info!("Timeout, doing a sync");
-                    match lc.do_sync(false) {
-                        Ok(_) => {},
-                        Err(e) => {error!("{}", e)}
-                    }
+                if cmd == "quit" {
+                    info!("Quit");
+                    break;
                 }
+            } else {
+                break;
             }
         }
     });
@@ -248,6 +242,7 @@ pub fn attempt_recover_seed(password: Option<String>) {
         sapling_activation_height: 0,
         consensus_branch_id: "000000".to_string(),
         anchor_offset: 0,
+        monitor_mempool: false,
         no_cert_verification: false,
         data_dir: None,
     };
