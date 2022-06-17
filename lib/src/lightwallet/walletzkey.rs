@@ -451,6 +451,7 @@ pub mod tests {
     LightClientConfig {
       server: "0.0.0.0:0".parse().unwrap(),
       chain_name: "main".to_string(),
+      monitor_mempool: false,
       sapling_activation_height: 0,
       consensus_branch_id: "000000".to_string(),
       anchor_offset: 0,
