@@ -1078,13 +1078,13 @@ impl LightWallet {
     }
 
     // Get all (unspent) utxos. Unconfirmed spent utxos are included
-    pub fn get_utxos(&self) -> Vec<Utxo> {
-        let txs = self.txs.read().unwrap();
-
-        txs.values()
-            .flat_map(|tx| {
-                tx.utxos.iter().filter(|utxo| utxo.spent.is_none())
-            })
+    pub async fn get_utxos(&self) -> Vec<Utxo> {
+        self.txns
+            .read()
+            .await
+            .current
+            .values()
+            .flat_map(|tx| tx.utxos.iter().filter(|utxo| utxo.spent.is_none()))
             .map(|utxo| utxo.clone())
             .collect::<Vec<Utxo>>()
     }
