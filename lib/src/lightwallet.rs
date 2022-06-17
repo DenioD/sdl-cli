@@ -1089,16 +1089,16 @@ impl LightWallet {
             .collect::<Vec<Utxo>>()
     }
 
-    pub fn tbalance(&self, addr: Option<String>) -> u64 {
-        self.get_utxos().iter()
-            .filter(|utxo| {
-                match addr.clone() {
-                    Some(a) => utxo.address == a,
-                    None    => true,
-                }
+    pub async fn tbalance(&self, addr: Option<String>) -> u64 {
+        self.get_utxos()
+            .await
+            .iter()
+            .filter(|utxo| match addr.as_ref() {
+                Some(a) => utxo.address == *a,
+                None => true,
             })
-            .map(|utxo| utxo.value )
-            .sum::<u64>() as u64
+            .map(|utxo| utxo.value)
+            .sum::<u64>()
     }
 
     pub fn verified_zbalance(&self, addr: Option<String>) -> u64 {
