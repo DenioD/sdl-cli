@@ -77,8 +77,11 @@ message TransparentAddressBlockFilter {
 
 service CompactTxStreamer {
     // Compact Blocks
+    // Return the height of the tip of the best chain
     rpc GetLatestBlock(ChainSpec) returns (BlockID) {}
+    // Return the compact block corresponding to the given block identifier
     rpc GetBlock(BlockID) returns (CompactBlock) {}
+    // Return a list of consecutive compact blocks
     rpc GetBlockRange(BlockRange) returns (stream CompactBlock) {}
 
     // Transactions
@@ -87,6 +90,19 @@ service CompactTxStreamer {
 
     // t-Address support
     rpc GetAddressTxids(TransparentAddressBlockFilter) returns (stream RawTransaction) {}
+
+    // Return the compact transactions currently in the mempool; the results
+    // can be a few seconds out of date. If the Exclude list is empty, return
+    // all transactions; otherwise return all *except* those in the Exclude list
+    // (if any); this allows the client to avoid receiving transactions that it
+    // already has (from an earlier call to this rpc). The transaction IDs in the
+    // Exclude list can be shortened to any number of bytes to make the request
+    // more bandwidth-efficient; if two or more transactions in the mempool
+    // match a shortened txid, they are all sent (none is excluded). Transactions
+    // in the exclude list that don't exist in the mempool are ignored.
+    rpc GetMempoolTx(Exclude) returns (stream CompactTx) {}
+
+    rpc GetMempoolStream(Empty) returns (stream RawTransaction) {}
 
     // Misc
     rpc GetLightdInfo(Empty) returns (LightdInfo) {}
