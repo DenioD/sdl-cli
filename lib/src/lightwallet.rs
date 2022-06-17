@@ -1047,26 +1047,34 @@ impl LightWallet {
         return self.unlocked;
     }
 
-    pub fn zbalance(&self, addr: Option<String>) -> u64 {
-        self.txs.read().unwrap() 
+    pub async fn zbalance(&self, addr: Option<String>) -> u64 {
+        self.txns
+            .read()
+            .await
+            .current
             .values()
-            .map (|tx| {
-                tx.notes.iter()
-                    .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
-                        match addr.clone() {
-                            Some(a) => a == encode_payment_address(
-                                                self.config.hrp_sapling_address(),
-                                                &nd.extfvk.fvk.vk
-                                                    .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
-                                            ),
-                            None    => true
+            .map(|tx| {
+                tx.notes
+                    .iter()
+                    .filter(|nd| match addr.as_ref() {
+                        Some(a) => {
+                            *a == encode_payment_address(
+                                self.config.hrp_sapling_address(),
+                                &nd.extfvk.fvk.vk.to_payment_address(nd.diversifier).unwrap(),
+                            )
+                        }
+                        None => true,
+                    })
+                    .map(|nd| {
+                        if nd.spent.is_none() && nd.unconfirmed_spent.is_none() {
+                            nd.note.value
+                        } else {
+                            0
                         }
                     })
-                    .map(|nd| if nd.spent.is_none() { nd.note.value } else { 0 })
                     .sum::<u64>()
             })
-            .sum::<u64>() as u64
-
+            .sum::<u64>()
     }
 
     // Get all (unspent) utxos. Unconfirmed spent utxos are included
