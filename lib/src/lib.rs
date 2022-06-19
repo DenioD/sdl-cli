@@ -21,5 +21,5 @@ pub struct PubCertificate;
 pub const ANCHOR_OFFSET: u32 = 0;
 
 pub mod grpc_client {
-    tonic::include_proto!("cash.z.wallet.sdk.rpc");
+    tonic::include_proto!("hush.wallet.sdk.rpc");
 }
