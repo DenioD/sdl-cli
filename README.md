@@ -52,6 +52,15 @@ cargo build --release
 ./target/release/silentdragonlite-cli
 ```
 
+#### Or build with make
+
+Alternatively, you can use the new makefile to build
+
+```shell script
+make help
+make build
+```
+
 ## Options
 Here are some CLI arguments you can pass to `silentdragonlite-cli`. Please run `silentdragonlite-cli --help` for the full list.
 
