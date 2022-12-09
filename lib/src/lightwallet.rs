@@ -102,7 +102,7 @@ impl ToBase58Check for [u8] {
         payload.extend_from_slice(self);
         payload.extend_from_slice(suffix);
 
-        let mut checksum = double_sha256(&payload);
+        let checksum = double_sha256(&payload);
         payload.append(&mut checksum[..4].to_vec());
         payload.to_base58()
     }
@@ -199,7 +199,7 @@ impl LightWallet {
     let zdustextfvk  = ExtendedFullViewingKey::from(&zdustextsk);
     let zdustaddress = zdustextfvk.default_address().unwrap().1;
 
-    (zdustaddress)
+    zdustaddress
 }
 
     pub fn is_shielded_address(addr: &String, config: &LightClientConfig) -> bool {
@@ -1999,7 +1999,7 @@ impl LightWallet {
         consensus_branch_id: u32,
         spend_params: &[u8],
         output_params: &[u8],
-        transparent_only: bool,
+        _transparent_only: bool,
         tos: Vec<(&str, u64, Option<String>)>,
         broadcast_fn: F
     ) -> Result<(String, Vec<u8>), String> 

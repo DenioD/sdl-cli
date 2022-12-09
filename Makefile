@@ -11,10 +11,13 @@ help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 about: ## Display release info
-	printf "Hush Silentdragonlite-cli Makefile by jahway603"
+	printf "Hush Silentdragonlite-cli Makefile by jahway603\n"
 
 build: ## Build the release
 	cargo build --release
+	cp `pwd`/target/release/$(PROJECT_NAME) .
+	printf "Hush silentdragonlite-cli is ready for you\n"
 
 clean: ## Clean the repo
 	cargo clean
+	rm $(PROJECT_NAME)
