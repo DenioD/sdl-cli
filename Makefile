@@ -14,7 +14,7 @@ about: ## Display release info
 	printf "Hush Silentdragonlite-cli Makefile by jahway603\n"
 
 build: ## Build the release
-	cargo build --release
+	./util/build.sh
 	cp `pwd`/target/release/$(PROJECT_NAME) .
 	printf "Hush silentdragonlite-cli is ready for you\n"
 
