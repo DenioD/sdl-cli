@@ -30,10 +30,13 @@ silentdragonlite does automatic note and utxo management, which means it doesn't
 
 #### Pre-requisites
 
+
+
 * You need Rust and how you install it will depend on your version of Linux. Below are well known rust versions tested on common Linux distributions.
 
 | Linux Version | Rust Version Tested | Command to install  |
 |---------------|--------|---------------------------|
+| Ubuntu 18.04  | 1.47.0 | [USE RUSTUP](https://www.rust-lang.org/tools/install) |
 | Ubuntu 18.04  | 1.65.0 | [USE RUSTUP](https://www.rust-lang.org/tools/install) |
 | Ubuntu 20.04  | 1.57.0 | sudo apt install rust-all |
 | Debian 11     | 1.50.0 | [USE RUSTUP](https://www.rust-lang.org/tools/install) |
@@ -42,6 +45,17 @@ silentdragonlite does automatic note and utxo management, which means it doesn't
 * Debian 11 comes with a much older rust compiler (1.48.0) and so you want to use rustup with Debian and install at least 1.50.0.
 * If you're using another Linux distro, then consult their package manager for rustc and cargo, but if it's tool old then you want to [use Rustup](https://www.rust-lang.org/tools/install) to install at least 1.50.0.
 * The build will fail if you do not have `rustfmt` binary, which is included when you use `rustup` but may not be included in via operating system packages. Using `rustup` is recommended
+
+To securely install rustup by compiling it yourself:
+
+```
+git clone https://github.com/rust-lang/rustup
+cd rustup
+cargo run --release
+```
+
+The above avoids piping the output of curl to bash (bad idea) and avoids using binaries. It will take a few minutes longer but is the better solution.
+
 
 #### The compilation
 
