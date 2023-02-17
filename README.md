@@ -37,7 +37,6 @@ silentdragonlite does automatic note and utxo management, which means it doesn't
 | Linux Version | Rust Version Tested | Command to install  |
 |---------------|--------|---------------------------|
 | Ubuntu 18.04  | 1.47.0 | [USE RUSTUP](https://www.rust-lang.org/tools/install) |
-| Ubuntu 18.04  | 1.65.0 | [USE RUSTUP](https://www.rust-lang.org/tools/install) |
 | Ubuntu 20.04  | 1.57.0 | sudo apt install rust-all |
 | Debian 11     | 1.50.0 | [USE RUSTUP](https://www.rust-lang.org/tools/install) |
 | Arch Linux    | 1.56.0 | pacman -S rustc cargo     |
