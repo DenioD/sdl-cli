@@ -1070,11 +1070,11 @@ pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), String> {
     let config = lc.config.clone();
     let uri = config.server.clone();
 
-    let (mempool_tx, mempool_rx) = std::sync::mpsc::channel::<RawTransaction>();
+    let (incoming_mempool_tx, incoming_mempool_rx) = std::sync::mpsc::channel::<RawTransaction>();
 
     // Thread for reveive transactions
     std::thread::spawn(move || {
-            while let Ok(rtx) = mempool_rx.recv() {               
+            while let Ok(rtx) = incoming_mempool_rx.recv() {               
                 if let Ok(tx) = Transaction::read(
                 &rtx.data[..])
            { 
@@ -1089,9 +1089,9 @@ pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), String> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(async {
             loop {
-                let mempool_tx_clone = mempool_tx.clone();
+                let incoming_mempool_tx_clone = incoming_mempool_tx.clone();
                 let send_closure = move |rtx: RawTransaction| {
-                    mempool_tx_clone.send(rtx).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+                    incoming_mempool_tx_clone.send(rtx).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
                 };
 
                 match grpcconnector::monitor_mempool(&uri.clone(), true, send_closure).await {
