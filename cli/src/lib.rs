@@ -208,6 +208,14 @@ pub fn command_loop(lightclient: Arc<LightClient>) -> (Sender<(String, Vec<Strin
 
     let lc = lightclient.clone();
     std::thread::spawn(move || {
+         //start mempool_monitor
+         match LightClient::start_mempool_monitor(lc.clone()) {
+            Ok(_) => {},
+            Err(e) => {
+                   
+                error!("Fehler beim Starten des Mempool-Monitors: {:?}", e);
+            }
+        }
         loop {
             match command_rx.recv_timeout(std::time::Duration::from_secs(5 * 60)) {
                 Ok((cmd, args)) => {

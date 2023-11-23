@@ -75,6 +75,10 @@ message TransparentAddressBlockFilter {
     BlockRange range = 2;
 }
 
+message Exclude {
+    repeated bytes txid = 1;
+}
+
 service CompactTxStreamer {
     // Compact Blocks
     rpc GetLatestBlock(ChainSpec) returns (BlockID) {}
@@ -91,4 +95,8 @@ service CompactTxStreamer {
     // Misc
     rpc GetLightdInfo(Empty) returns (LightdInfo) {}
     rpc GetCoinsupply(Empty) returns (Coinsupply) {}
+
+    //Mempool
+    rpc GetMempoolTx(Exclude) returns (stream CompactTx) {}
+    rpc GetMempoolStream(Empty) returns (stream RawTransaction) {}
 }

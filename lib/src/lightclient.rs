@@ -11,6 +11,10 @@ use std::cmp::{max, min};
 use std::io;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter, Error, ErrorKind};
+use tokio::runtime::Runtime;
+use tokio::time::{Duration};
+
+use crate::grpc_client::RawTransaction;
 
 use protobuf::parse_from_bytes;
 
@@ -1037,6 +1041,48 @@ impl LightClient {
         Ok(array![new_address])
     }
 
+    // Start Mempool-Monitor
+pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), String> {
+    let config = lc.config.clone();
+    let uri = config.server.clone();
+    println!("Mempool monitoring starting");
+
+    let (mempool_tx, mempool_rx) = std::sync::mpsc::channel::<RawTransaction>();
+
+    // Thread for reveive transactions
+    std::thread::spawn(move || {
+            while let Ok(rtx) = mempool_rx.recv() {               
+                if let Ok(tx) = Transaction::read(
+                &rtx.data[..])
+           { 
+           let light_wallet_clone = lc.wallet.clone();
+           light_wallet_clone.read().unwrap().scan_full_tx(&tx, rtx.height as i32, 0, true);
+            }
+    }
+    });
+
+    // Thread mempool monitor
+    std::thread::spawn(move || {
+        let mut rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            loop {
+                let mempool_tx_clone = mempool_tx.clone();
+                let send_closure = move |rtx: RawTransaction| {
+                    mempool_tx_clone.send(rtx).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+                };
+
+                match grpcconnector::monitor_mempool(&uri.clone(), true, send_closure).await {
+                    Ok(_) => info!("Mempool monitor loop successful"),
+                    Err(e) => warn!("Mempool monitor returned {:?}, will restart listening", e),
+                }
+
+                std::thread::sleep(Duration::from_secs(10));
+            }
+        });
+    });
+
+    Ok(())
+}
     /// Convinence function to determine what type of key this is and import it
     pub fn do_import_key(&self, key: String, birthday: u64) -> Result<JsonValue, String> {
         if key.starts_with(self.config.hrp_sapling_private_key()) {
@@ -1436,7 +1482,7 @@ impl LightClient {
 
                     // Scan this Tx for transparent inputs and outputs
                     let datetime = block_times.read().unwrap().get(&height).map(|v| *v).unwrap_or(0);
-                    wallet.read().unwrap().scan_full_tx(&tx, height as i32, datetime as u64); 
+                    wallet.read().unwrap().scan_full_tx(&tx, height as i32, datetime as u64,false); 
                 });
                 ctx.send(r).unwrap();
             });
@@ -1481,7 +1527,7 @@ impl LightClient {
                         Ok(tx_bytes) => {
                             let tx = Transaction::read(&tx_bytes[..]).unwrap();
     
-                            light_wallet_clone.read().unwrap().scan_full_tx(&tx, height, 0);
+                            light_wallet_clone.read().unwrap().scan_full_tx(&tx, height, 0,false);
                             ctx.send(Ok(())).unwrap();
                         },
                         Err(e) => ctx.send(Err(e)).unwrap()

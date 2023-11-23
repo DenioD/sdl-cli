@@ -1,6 +1,6 @@
 // Copyright The Hush Developers  2019-2022
 // Released under the GPLv3
-use log::{error};
+use log::{info,error};
 use std::sync::Arc;
 use zcash_primitives::transaction::{TxId};
 
@@ -12,6 +12,10 @@ use tonic::{Request};
 
 use threadpool::ThreadPool;
 use std::sync::mpsc::channel;
+
+
+
+
 
 use crate::PubCertificate;
 use crate::grpc_client::compact_tx_streamer_client::CompactTxStreamerClient;
@@ -184,6 +188,41 @@ async fn get_address_txids<F : 'static + std::marker::Send>(uri: &http::Uri, add
 
     while let Some(tx) = response.message().await? {
         c(&tx.data, tx.height);
+    }
+
+    Ok(())
+}
+
+// function to monitor mempool transactions
+pub async fn monitor_mempool<F: 'static + std::marker::Send>(
+    uri: &http::Uri,
+    no_cert: bool,
+    mut c: F
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    F: FnMut(RawTransaction) -> Result<(), Box<dyn std::error::Error>>,
+{
+  
+    let mut client = get_client(uri, no_cert)
+            .await
+            .map_err(|e| format!("Error getting client: {:?}", e))?;
+  
+
+    let request = Request::new(Empty {});
+   
+
+    let mut response = client
+            .get_mempool_stream(request)
+            .await
+            .map_err(|e| format!("{}", e))?
+            .into_inner();
+    
+
+    while let Ok(Some(rtx)) = response.message().await { 
+       
+        if let Err(e) = c(rtx) {
+            info!("Error processing RawTransaction: {:?}", e);
+        }
     }
 
     Ok(())

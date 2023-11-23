@@ -102,7 +102,7 @@ impl ToBase58Check for [u8] {
         payload.extend_from_slice(self);
         payload.extend_from_slice(suffix);
 
-        let mut checksum = double_sha256(&payload);
+        let checksum = double_sha256(&payload);
         payload.append(&mut checksum[..4].to_vec());
         payload.to_base58()
     }
@@ -199,7 +199,7 @@ impl LightWallet {
     let zdustextfvk  = ExtendedFullViewingKey::from(&zdustextsk);
     let zdustaddress = zdustextfvk.default_address().unwrap().1;
 
-    (zdustaddress)
+    zdustaddress
 }
 
     pub fn is_shielded_address(addr: &String, config: &LightClientConfig) -> bool {
@@ -1276,16 +1276,19 @@ impl LightWallet {
     }
 
     // Scan the full Tx and update memos for incoming shielded transactions.
-    pub fn scan_full_tx(&self, tx: &Transaction, height: i32, datetime: u64) {
+    pub fn scan_full_tx(&self, tx: &Transaction, height: i32, datetime: u64, mempool_transaction: bool) {
         let mut total_transparent_spend: u64 = 0;
+      //  println!("Mempool transaktion ? {}", mempool_transaction);
 
         // Scan all the inputs to see if we spent any transparent funds in this tx
         for vin in tx.vin.iter() {    
+            
             // Find the txid in the list of utxos that we have.
             let txid = TxId {0: vin.prevout.hash};
             match self.txs.write().unwrap().get_mut(&txid) {
                 Some(wtx) => {
-                    //println!("Looking for {}, {}", txid, vin.prevout.n);
+                    println!("Looking for {}, {}", txid, vin.prevout.n);
+                    println!("Die Blockhöhe war : {}",height);
 
                     // One of the tx outputs is a match
                     let spent_utxo = wtx.utxos.iter_mut()
@@ -1383,43 +1386,84 @@ impl LightWallet {
         }
 
         // Scan shielded sapling outputs to see if anyone of them is us, and if it is, extract the memo
-        for output in tx.shielded_outputs.iter() {
-            let ivks: Vec<_> = self.zkeys.read().unwrap().iter()
-                .map(|zk| zk.extfvk.fvk.vk.ivk()
-                ).collect();
+for output in tx.shielded_outputs.iter() {
+    let ivks: Vec<_> = self.zkeys.read().unwrap().iter()
+        .map(|zk| zk.extfvk.fvk.vk.ivk()).collect();
 
-            let cmu = output.cmu;
-            let ct  = output.enc_ciphertext;
+    //println!("Scanning txid: {}", tx.txid());
 
-            // Search all of our keys
-            for ivk in ivks {
-                let epk_prime = output.ephemeral_key.as_prime_order(&JUBJUB).unwrap();
+    let cmu = output.cmu;
+    let ct  = output.enc_ciphertext;
 
-                let (note, _to, memo) = match try_sapling_note_decryption(&ivk, &epk_prime, &cmu, &ct) {
-                    Some(ret) => ret,
-                    None => continue,
-                };
+    // Search all of our keys
+    for ivk in ivks {
+        let epk_prime = output.ephemeral_key.as_prime_order(&JUBJUB).unwrap();
+
+        match try_sapling_note_decryption(&ivk, &epk_prime, &cmu, &ct) {
+            Some((note, _to, memo)) => {
+                println!("Transaktion erfolgreich entschlüsselt mit ivk: {:?}", ivk);
+                println!("note : {:?}", note);
 
                 if memo.to_utf8().is_some() {
-                    // info!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
-
-                    // Do it in a short scope because of the write lock.   
-                    let mut txs = self.txs.write().unwrap();
-                       // Update memo if we have this Tx. 
-                       match txs.get_mut(&tx.txid())
-                       .and_then(|t| {
-                           t.notes.iter_mut().find(|nd| nd.note == note)
-                       }) {
-                        None => {
-                            info!("No txid matched for incoming sapling funds while updating memo"); 
-                            ()
-                        },
-                           Some(nd) => {
-                               nd.memo = Some(memo)
-                           }
-                       }
-                }
+                    println!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
+                    println!("Das Memo war: {:?}", memo.to_utf8());               
+                    
+                   let mut mempool_txs = self.mempool_txs.write().unwrap();
+                    if mempool_transaction {
+                        println!("mempool tx war da");
+                    
+                        if !mempool_txs.contains_key(&tx.txid()) {
+                            let addr = "";
+                            let amt = note.value;
+                            let memo_mem = memo.clone();
+                            let mut wtx = WalletTx::new(height as i32, now() as u64, &tx.txid());
+                    
+                            let outgoing_metadata = OutgoingTxMetadata {
+                                address: addr.to_string(),
+                                value: amt,
+                                memo: memo_mem, 
+                            };
+                    
+                            // Fügen outgoing_metadata zu einem Vektor hinzu
+                            wtx.outgoing_metadata.push(outgoing_metadata);
+                    
+                            // Add it into the mempool 
+                            mempool_txs.insert(tx.txid(), wtx);
+                            println!("Erfolgreich txid hinzugefügt");
+                        } else {
+                            println!("Txid ist bereits im mempool");
+                        }
+                    }
+                    
+                    
+                    // Do it in a short scope because of the write lock.
+    let mut txs = self.txs.write().unwrap();
+        match txs.get_mut(&tx.txid())
+                .and_then(|t| t.notes.iter_mut().find(|nd| nd.note == note)) {
+                Some(nd) => {
+                println!("Die Txid in txs gefunden");
+                nd.memo = Some(memo);
+    },
+    None => {
+        match mempool_txs.get_mut(&tx.txid()) {
+            Some(_wtx) => {
+                println!("Die Txid in mempool_txs gefunden");
+            },
+            None => {
+                println!("No txid matched for incoming sapling funds while updating memo in txs or mempool_txs");
             }
+        }
+    }
+}
+                }
+            },
+            None => {
+               // println!("Transaktion konnte nicht entschlüsselt werden mit ivk: {:?}", ivk);
+            }
+        };
+    }
+
+
 
             // Also scan the output to see if it can be decoded with our OutgoingViewKey
             // If it can, then we sent this transaction, so we should be able to get
@@ -1493,6 +1537,8 @@ impl LightWallet {
             };
         }
     }
+
+
 
     // Invalidate all blocks including and after "at_height".
     // Returns the number of blocks invalidated
@@ -1999,7 +2045,7 @@ impl LightWallet {
         consensus_branch_id: u32,
         spend_params: &[u8],
         output_params: &[u8],
-        transparent_only: bool,
+        _transparent_only: bool,
         tos: Vec<(&str, u64, Option<String>)>,
         broadcast_fn: F
     ) -> Result<(String, Vec<u8>), String> 
