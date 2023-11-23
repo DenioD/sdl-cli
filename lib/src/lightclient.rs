@@ -972,6 +972,30 @@ impl LightClient {
             }
         }));
 
+         // Add in all icoming_mempool txns
+         tx_list.extend(wallet.incoming_mempool_txs.read().unwrap().iter().map( |(_, wtx)| {
+            
+            let amount: u64 = wtx.incoming_metadata.iter().map(|om| om.value).sum::<u64>();
+
+            // Collect incoming metadata
+            let incoming_json = wtx.incoming_metadata.iter()
+                .map(|om| 
+                    object!{
+                        "address" => om.address.clone(),
+                        "value"   => om.value,
+                        "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                }).collect::<Vec<JsonValue>>();                    
+
+            object! {
+                "block_height" => wtx.block,
+                "datetime"     => wtx.datetime,
+                "txid"         => format!("{}", wtx.txid),
+                "amount"       =>  amount as i64,
+                "unconfirmed"  => true,
+                "incoming_metadata" => incoming_json,
+            }
+        }));
+
         tx_list.sort_by( |a, b| if a["block_height"] == b["block_height"] {
                                     a["txid"].as_str().cmp(&b["txid"].as_str())
                                 } else {
@@ -1045,7 +1069,6 @@ impl LightClient {
 pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), String> {
     let config = lc.config.clone();
     let uri = config.server.clone();
-    println!("Mempool monitoring starting");
 
     let (mempool_tx, mempool_rx) = std::sync::mpsc::channel::<RawTransaction>();
 

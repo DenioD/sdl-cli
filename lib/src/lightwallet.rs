@@ -65,7 +65,7 @@ mod address;
 mod prover;
 mod walletzkey;
 
-use data::{BlockData, WalletTx, Utxo, SaplingNoteData, SpendableNote, OutgoingTxMetadata};
+use data::{BlockData, WalletTx, Utxo, SaplingNoteData, SpendableNote, OutgoingTxMetadata, IncomingTxMetadata};
 use extended_key::{KeyIndex, ExtendedPrivKey};
 use walletzkey::{WalletZKey, WalletTKey, WalletZKeyType};
 
@@ -135,6 +135,8 @@ pub struct LightWallet {
     // Transactions that are only in the mempool, but haven't been confirmed yet. 
     // This is not stored to disk. 
     pub mempool_txs: Arc<RwLock<HashMap<TxId, WalletTx>>>,
+
+    pub incoming_mempool_txs: Arc<RwLock<HashMap<TxId, WalletTx>>>,
 
     // The block at which this wallet was born. Rescans
     // will start from here.
@@ -258,6 +260,7 @@ impl LightWallet {
             blocks:      Arc::new(RwLock::new(vec![])),
             txs:         Arc::new(RwLock::new(HashMap::new())),
             mempool_txs: Arc::new(RwLock::new(HashMap::new())),
+            incoming_mempool_txs: Arc::new(RwLock::new(HashMap::new())),
             config:      config.clone(),
             birthday:    latest_block,
             total_scan_duration: Arc::new(RwLock::new(vec![Duration::new(0, 0)])),
@@ -427,6 +430,7 @@ impl LightWallet {
             blocks:      Arc::new(RwLock::new(blocks)),
             txs:         Arc::new(RwLock::new(txs)),
             mempool_txs: Arc::new(RwLock::new(HashMap::new())),
+            incoming_mempool_txs: Arc::new(RwLock::new(HashMap::new())),
             config:      config.clone(),
             birthday,
             total_scan_duration: Arc::new(RwLock::new(vec![Duration::new(0, 0)])),
@@ -749,6 +753,7 @@ impl LightWallet {
         self.blocks.write().unwrap().clear();
         self.txs.write().unwrap().clear();
         self.mempool_txs.write().unwrap().clear();
+        self.incoming_mempool_txs.write().unwrap().clear();
     }
 
     pub fn set_initial_block(&self, height: i32, hash: &str, sapling_tree: &str) -> bool {
@@ -1408,27 +1413,27 @@ for output in tx.shielded_outputs.iter() {
                     println!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
                     println!("Das Memo war: {:?}", memo.to_utf8());               
                     
-                   let mut mempool_txs = self.mempool_txs.write().unwrap();
+                   let mut incoming_mempool_txs = self.incoming_mempool_txs.write().unwrap();
                     if mempool_transaction {
                         println!("mempool tx war da");
                     
-                        if !mempool_txs.contains_key(&tx.txid()) {
+                        if !incoming_mempool_txs.contains_key(&tx.txid()) {
                             let addr = "";
                             let amt = note.value;
                             let memo_mem = memo.clone();
                             let mut wtx = WalletTx::new(height as i32, now() as u64, &tx.txid());
                     
-                            let outgoing_metadata = OutgoingTxMetadata {
+                            let incoming_metadata = IncomingTxMetadata {
                                 address: addr.to_string(),
                                 value: amt,
                                 memo: memo_mem, 
                             };
                     
-                            // Fügen outgoing_metadata zu einem Vektor hinzu
-                            wtx.outgoing_metadata.push(outgoing_metadata);
+                            // Fügen incoming_metadata zu einem Vektor hinzu
+                            wtx.incoming_metadata.push(incoming_metadata);
                     
                             // Add it into the mempool 
-                            mempool_txs.insert(tx.txid(), wtx);
+                            incoming_mempool_txs.insert(tx.txid(), wtx);
                             println!("Erfolgreich txid hinzugefügt");
                         } else {
                             println!("Txid ist bereits im mempool");
@@ -1445,7 +1450,7 @@ for output in tx.shielded_outputs.iter() {
                 nd.memo = Some(memo);
     },
     None => {
-        match mempool_txs.get_mut(&tx.txid()) {
+        match incoming_mempool_txs.get_mut(&tx.txid()) {
             Some(_wtx) => {
                 println!("Die Txid in mempool_txs gefunden");
             },
@@ -2027,6 +2032,7 @@ for output in tx.shielded_outputs.iter() {
         {
             // Cleanup mempool tx after adding a block, to remove all txns that got mined
             self.cleanup_mempool();
+            self.cleanup_incoming_mempool();
         }
 
         // Print info about the block every 10,000 blocks
@@ -2353,6 +2359,26 @@ for output in tx.shielded_outputs.iter() {
         {
             // Remove all txns where the txid is added to the wallet directly
             self.mempool_txs.write().unwrap().retain ( |txid, _| {
+                self.txs.read().unwrap().get(txid).is_none()
+            });
+        }
+    }
+
+    pub fn cleanup_incoming_mempool(&self) {
+        const DEFAULT_TX_EXPIRY_DELTA: i32 = 20;
+
+        let current_height = self.blocks.read().unwrap().last().map(|b| b.height).unwrap_or(0);
+
+        {
+            // Remove all expired Txns
+            self.incoming_mempool_txs.write().unwrap().retain( | _, wtx| {
+                current_height < (wtx.block + DEFAULT_TX_EXPIRY_DELTA)    
+            });
+        }
+
+        {
+            // Remove all txns where the txid is added to the wallet directly
+            self.incoming_mempool_txs.write().unwrap().retain ( |txid, _| {
                 self.txs.read().unwrap().get(txid).is_none()
             });
         }
