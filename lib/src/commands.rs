@@ -113,7 +113,6 @@ impl Command for RescanCommand {
     }
 }
 
-
 struct ClearCommand {}
 impl Command for ClearCommand {
     fn help(&self) -> String {

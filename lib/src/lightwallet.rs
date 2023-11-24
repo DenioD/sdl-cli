@@ -1058,8 +1058,8 @@ impl LightWallet {
             .map (|tx| {
                 tx.notes.iter()
                     .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
-                        match addr.clone() {
-                            Some(a) => a == encode_payment_address(
+                        match addr.as_ref() {
+                            Some(a) => *a == encode_payment_address(
                                                 self.config.hrp_sapling_address(),
                                                 &nd.extfvk.fvk.vk
                                                     .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
@@ -1067,7 +1067,13 @@ impl LightWallet {
                             None    => true
                         }
                     })
-                    .map(|nd| if nd.spent.is_none() { nd.note.value } else { 0 })
+                    .map(|nd| {
+                        if nd.spent.is_none() && nd.unconfirmed_spent.is_none() {
+                            nd.note.value
+                        } else {
+                            0
+                        }
+                    })
                     .sum::<u64>()
             })
             .sum::<u64>() as u64
@@ -1114,8 +1120,8 @@ impl LightWallet {
                         .iter()
                         .filter(|nd| nd.spent.is_none() && nd.unconfirmed_spent.is_none())
                         .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
-                            match addr.clone() {
-                                Some(a) => a == encode_payment_address(
+                            match addr.as_ref() {
+                                Some(a) => *a == encode_payment_address(
                                                     self.config.hrp_sapling_address(),
                                                     &nd.extfvk.fvk.vk
                                                         .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
@@ -1149,8 +1155,8 @@ impl LightWallet {
                             self.have_spendingkey_for_extfvk(&nd.extfvk)
                         })
                         .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
-                            match addr.clone() {
-                                Some(a) => a == encode_payment_address(
+                            match addr.as_ref() {
+                                Some(a) => *a == encode_payment_address(
                                                     self.config.hrp_sapling_address(),
                                                     &nd.extfvk.fvk.vk
                                                         .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
@@ -1471,14 +1477,14 @@ pub fn scan_full_tx(&self, tx: &Transaction, height: i32, datetime: u64) {
     }
 }
 
-pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, datetime: u64, mempool_transaction: bool) {
+pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64, mempool_transaction: bool) {
     println!("Mempool transaction ? {}", mempool_transaction);
 
     for output in tx.shielded_outputs.iter() {
         let ivks = match self.zkeys.read() {
             Ok(keys) => keys.iter().map(|zk| zk.extfvk.fvk.vk.ivk()).collect::<Vec<_>>(),
             Err(e) => {
-                eprintln!("Error reading zkeys: {}", e);
+                error!("Error reading zkeys: {}", e);
                 return;
             }
         };
@@ -1494,17 +1500,13 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, datetime: u64,
 
             if let Some((note, _to, memo)) = try_sapling_note_decryption(&ivk, &epk_prime, &cmu, ct) {
 
-             //   if let Some(memo_utf8) = memo.to_utf8() {
-                   
-
                     if mempool_transaction {
-                        println!("Mempool tx present");
-                        println!("The Height is: {:?}", height);
-
+                        info!("Mempool tx present");
+  
                         let mut incoming_mempool_txs = match self.incoming_mempool_txs.write() {
                             Ok(txs) => txs,
                             Err(e) => {
-                                eprintln!("Error acquiring write lock: {}", e);
+                                error!("Error acquiring write lock: {}", e);
                                 return;
                             }
                         };
@@ -1527,14 +1529,12 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, datetime: u64,
                             let mut txs = match self.txs.write() {
                                 Ok(t) => t,
                                 Err(e) => {
-                                    eprintln!("Error acquiring write lock: {}", e);
+                                    error!("Error acquiring write lock: {}", e);
                                     return;
                                 }
                             };
                             
-                            // Stellen Sie sicher, dass ein Eintrag für txid existiert oder erstellen Sie einen neuen
                             if let Some(wtx) = txs.get_mut(&tx.txid()) {
-                                // Füge die neue Metadaten hinzu, wenn sie bereits existieren
                                 wtx.incoming_metadata.push(IncomingTxMetadata {
                                     address: addr.to_string(),
                                     value: amt,
@@ -1542,8 +1542,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, datetime: u64,
                                     incoming_mempool: true,
                                 });
                             } else {
-                                // Erstellen Sie einen neuen Eintrag, wenn keiner existiert
-                                let mut new_wtx = WalletTx::new(height, datetime, &tx.txid());
+                                let mut new_wtx = WalletTx::new(height, now() as u64, &tx.txid());
                                 new_wtx.incoming_metadata.push(IncomingTxMetadata {
                                     address: addr.to_string(),
                                     value: amt,
@@ -1561,7 +1560,6 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, datetime: u64,
                     } else {
                         info!("Not a mempool transaction");
                     }
-               // }
             }
            
         }
