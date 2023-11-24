@@ -1426,7 +1426,7 @@ for output in tx.shielded_outputs.iter() {
                             let incoming_metadata = IncomingTxMetadata {
                                 address: addr.to_string(),
                                 value: amt,
-                                memo: memo_mem, 
+                                memo: memo_mem.clone(), 
                             };
                     
                             // Fügen incoming_metadata zu einem Vektor hinzu
@@ -1434,6 +1434,15 @@ for output in tx.shielded_outputs.iter() {
                     
                             // Add it into the mempool 
                             incoming_mempool_txs.insert(tx.txid(), wtx);
+
+                            let mut txs = self.txs.write().unwrap();
+
+                            // Write the incoming metadata
+                            txs.get_mut(&tx.txid()).unwrap()
+                            .incoming_metadata
+                            .push(IncomingTxMetadata{
+                                address: addr.to_string(), value: note.value, memo: memo_mem.clone(),
+                            });
                             println!("Erfolgreich txid hinzugefügt");
                         } else {
                             println!("Txid ist bereits im mempool");
@@ -1451,12 +1460,15 @@ for output in tx.shielded_outputs.iter() {
     },
     None => {
         match incoming_mempool_txs.get_mut(&tx.txid()) {
+           // .and_then(|t| t.notes.iter_mut().find(|nd| nd.note == note)) {
             Some(_wtx) => {
                 println!("Die Txid in mempool_txs gefunden");
+              //  wtx.memo = Some(memo);
             },
             None => {
                 println!("No txid matched for incoming sapling funds while updating memo in txs or mempool_txs");
             }
+        
         }
     }
 }
