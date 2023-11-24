@@ -1429,10 +1429,6 @@ for output in tx.shielded_outputs.iter() {
                                 value: amt,
                                 memo: memo_mem.clone(), 
                             };
-
-                            println!("Incoming Metadata addr : {}", incoming_metadata.address);
-                            println!("Incoming Metadata amt : {}", incoming_metadata.value);
-                            println!("Incoming Metadata memo : {:?}", incoming_metadata.memo);
                     
                             // Fügen incoming_metadata zu einem Vektor hinzu
                             wtx.incoming_metadata.push(incoming_metadata);
@@ -1440,14 +1436,14 @@ for output in tx.shielded_outputs.iter() {
                             // Add it into the mempool 
                             incoming_mempool_txs.insert(tx.txid(), wtx);
 
-                          /*  let mut txs = self.txs.write().unwrap();
+                            let mut txs = self.txs.write().unwrap();
 
                             // Write the incoming metadata
                             txs.get_mut(&tx.txid()).unwrap()
                             .incoming_metadata
                             .push(IncomingTxMetadata{
                                 address: addr.to_string(), value: note.value, memo: memo_mem.clone(),
-                            });*/
+                            });
                             println!("Erfolgreich txid hinzugefügt");
                         } else {
                             println!("Txid ist bereits im mempool");
