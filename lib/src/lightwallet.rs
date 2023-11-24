@@ -1428,6 +1428,7 @@ for output in tx.shielded_outputs.iter() {
                                 address: addr.to_string(),
                                 value: amt,
                                 memo: memo_mem.clone(), 
+                                incoming_mempool: true,
                             };
                     
                             // Fügen incoming_metadata zu einem Vektor hinzu
@@ -1442,7 +1443,7 @@ for output in tx.shielded_outputs.iter() {
                             txs.get_mut(&tx.txid()).unwrap()
                             .incoming_metadata
                             .push(IncomingTxMetadata{
-                                address: addr.to_string(), value: note.value, memo: memo_mem.clone(),
+                                address: addr.to_string(), value: note.value, memo: memo_mem.clone(), incoming_mempool: true,
                             });
                             println!("Erfolgreich txid hinzugefügt");
                         } else {

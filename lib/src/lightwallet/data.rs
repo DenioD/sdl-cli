@@ -365,6 +365,7 @@ pub struct IncomingTxMetadata {
     pub address: String,
     pub value  : u64,
     pub memo   : Memo,
+    pub incoming_mempool: bool,
 }
 
 impl IncomingTxMetadata {
@@ -375,6 +376,7 @@ impl IncomingTxMetadata {
         let address = String::from_utf8(address_bytes).unwrap();
 
         let value = reader.read_u64::<LittleEndian>()?;
+        let incoming_mempool = true;
 
         let mut memo_bytes = [0u8; 512];
         reader.read_exact(&mut memo_bytes)?;
@@ -384,6 +386,7 @@ impl IncomingTxMetadata {
             address,
             value,
             memo,
+            incoming_mempool,
         })
     }
 

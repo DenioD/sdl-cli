@@ -960,6 +960,7 @@ impl LightClient {
                         "address" => om.address.clone(),
                         "value"   => om.value,
                         "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                        
                 }).collect::<Vec<JsonValue>>();                    
 
             object! {
@@ -984,6 +985,7 @@ impl LightClient {
                         "address" => om.address.clone(),
                         "value"   => om.value,
                         "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                        "incoming_mempool" => true,
                 }).collect::<Vec<JsonValue>>();                    
                 
                 println!("incoming_json : {:?}", incoming_json);
