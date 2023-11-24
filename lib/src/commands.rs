@@ -5,8 +5,6 @@ use json::{object};
 
 use crate::lightclient::LightClient;
 use crate::lightwallet::LightWallet;
-use std::fs::File;
-use std::io::Write;
 
 pub trait Command {
     fn help(&self) -> String;
@@ -34,10 +32,11 @@ impl Command for SyncCommand {
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
         match lightclient.do_sync(true) {
-            Ok(j) => j.pretty(2),
-            Err(e) => e
+            Ok(j) => j.pretty(2), 
+            Err(e) => e.to_string() 
         }
     }
+    
 }
 
 struct EncryptionStatusCommand {}
@@ -638,21 +637,12 @@ impl Command for TransactionsCommand {
     }
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
-        let output = match lightclient.do_sync(true) {
+        match lightclient.do_sync(true) {
             Ok(_) => {
                 format!("{}", lightclient.do_list_transactions().pretty(2))
             },
-            Err(e) => e.to_string()
-        };
-
-        // Speichern des Outputs in einer Datei
-        let mut file = File::create("transactions_output.txt")
-            .expect("Unable to create file");
-        file.write_all(output.as_bytes())
-            .expect("Unable to write data");
-
-        // Optional: Rückgabe eines Hinweises, dass die Ausgabe in eine Datei geschrieben wurde
-        "Output written to transactions_output.txt".to_string()
+            Err(e) => e
+        }
     }
 }
 
