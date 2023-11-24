@@ -945,6 +945,33 @@ impl LightClient {
             })
             .collect::<Vec<JsonValue>>();
 
+        // Add in all icoming_mempool txns
+        tx_list.extend(wallet.incoming_mempool_txs.read().unwrap().iter().map( |(_, wtx)| {
+            
+            let amount: u64 = wtx.incoming_metadata.iter().map(|om| om.value).sum::<u64>();
+
+            // Collect incoming metadata
+            let incoming_json = wtx.incoming_metadata.iter()
+                .map(|om| 
+                    object!{
+                        "address" => om.address.clone(),
+                        "value"   => om.value,
+                        "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                        
+                }).collect::<Vec<JsonValue>>();                    
+                
+                println!("incoming_json : {:?}", incoming_json);
+            object! {
+                "block_height" => wtx.block,
+                "datetime"     => wtx.datetime,
+                "txid"         => format!("{}", wtx.txid),
+                "amount"       =>  amount as i64,
+                "unconfirmed"  => true,
+                "incoming_mempool" => true,
+                "incoming_metadata" => incoming_json,
+            }
+        }));
+
         // Add in all mempool txns
         tx_list.extend(wallet.mempool_txs.read().unwrap().iter().map( |(_, wtx)| {
             use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
@@ -973,32 +1000,7 @@ impl LightClient {
             }
         }));
 
-         // Add in all icoming_mempool txns
-         tx_list.extend(wallet.incoming_mempool_txs.read().unwrap().iter().map( |(_, wtx)| {
-            
-            let amount: u64 = wtx.incoming_metadata.iter().map(|om| om.value).sum::<u64>();
-
-            // Collect incoming metadata
-            let incoming_json = wtx.incoming_metadata.iter()
-                .map(|om| 
-                    object!{
-                        "address" => om.address.clone(),
-                        "value"   => om.value,
-                        "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
-                        
-                }).collect::<Vec<JsonValue>>();                    
-                
-                println!("incoming_json : {:?}", incoming_json);
-            object! {
-                "block_height" => wtx.block,
-                "datetime"     => wtx.datetime,
-                "txid"         => format!("{}", wtx.txid),
-                "amount"       =>  amount as i64,
-                "unconfirmed"  => true,
-                "incoming_mempool" => true,
-                "incoming_metadata" => incoming_json,
-            }
-        }));
+         
 
         tx_list.sort_by( |a, b| if a["block_height"] == b["block_height"] {
                                     a["txid"].as_str().cmp(&b["txid"].as_str())
