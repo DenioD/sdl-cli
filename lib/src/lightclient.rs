@@ -985,7 +985,8 @@ impl LightClient {
                         "value"   => om.value,
                         "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
                 }).collect::<Vec<JsonValue>>();                    
-
+                
+                println!("incoming_json : {:?}", incoming_json);
             object! {
                 "block_height" => wtx.block,
                 "datetime"     => wtx.datetime,

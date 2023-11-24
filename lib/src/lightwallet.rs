@@ -1416,6 +1416,7 @@ for output in tx.shielded_outputs.iter() {
                    let mut incoming_mempool_txs = self.incoming_mempool_txs.write().unwrap();
                     if mempool_transaction {
                         println!("mempool tx war da");
+                        println!("Die Height ist : {:?}", height as i32);
                     
                         if !incoming_mempool_txs.contains_key(&tx.txid()) {
                             let addr = "";
@@ -1435,14 +1436,14 @@ for output in tx.shielded_outputs.iter() {
                             // Add it into the mempool 
                             incoming_mempool_txs.insert(tx.txid(), wtx);
 
-                            let mut txs = self.txs.write().unwrap();
+                          /*  let mut txs = self.txs.write().unwrap();
 
                             // Write the incoming metadata
                             txs.get_mut(&tx.txid()).unwrap()
                             .incoming_metadata
                             .push(IncomingTxMetadata{
                                 address: addr.to_string(), value: note.value, memo: memo_mem.clone(),
-                            });
+                            });*/
                             println!("Erfolgreich txid hinzugefügt");
                         } else {
                             println!("Txid ist bereits im mempool");
