@@ -1083,7 +1083,7 @@ pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), String> {
                 &rtx.data[..])
            { 
            let light_wallet_clone = lc.wallet.clone();
-           light_wallet_clone.read().unwrap().scan_full_tx(&tx, rtx.height as i32, 0, true);
+           light_wallet_clone.read().unwrap().scan_full_mempool_tx(&tx, rtx.height as i32, 0, true);
             }
     }
     });
@@ -1509,7 +1509,7 @@ pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), String> {
 
                     // Scan this Tx for transparent inputs and outputs
                     let datetime = block_times.read().unwrap().get(&height).map(|v| *v).unwrap_or(0);
-                    wallet.read().unwrap().scan_full_tx(&tx, height as i32, datetime as u64,false); 
+                    wallet.read().unwrap().scan_full_tx(&tx, height as i32, datetime as u64); 
                 });
                 ctx.send(r).unwrap();
             });
@@ -1554,7 +1554,7 @@ pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), String> {
                         Ok(tx_bytes) => {
                             let tx = Transaction::read(&tx_bytes[..]).unwrap();
     
-                            light_wallet_clone.read().unwrap().scan_full_tx(&tx, height, 0,false);
+                            light_wallet_clone.read().unwrap().scan_full_tx(&tx, height, 0);
                             ctx.send(Ok(())).unwrap();
                         },
                         Err(e) => ctx.send(Err(e)).unwrap()

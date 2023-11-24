@@ -360,7 +360,7 @@ impl OutgoingTxMetadata {
         writer.write_all(self.memo.as_bytes())
     }
 }
-
+#[derive(Debug)]
 pub struct IncomingTxMetadata {
     pub address: String,
     pub value  : u64,
