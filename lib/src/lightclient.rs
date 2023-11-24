@@ -985,7 +985,7 @@ impl LightClient {
                         "address" => om.address.clone(),
                         "value"   => om.value,
                         "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
-                        "incoming_mempool" => true,
+                        
                 }).collect::<Vec<JsonValue>>();                    
                 
                 println!("incoming_json : {:?}", incoming_json);
@@ -995,6 +995,7 @@ impl LightClient {
                 "txid"         => format!("{}", wtx.txid),
                 "amount"       =>  amount as i64,
                 "unconfirmed"  => true,
+                "incoming_mempool" => true,
                 "incoming_metadata" => incoming_json,
             }
         }));
