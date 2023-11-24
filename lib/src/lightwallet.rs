@@ -1419,7 +1419,7 @@ for output in tx.shielded_outputs.iter() {
                         println!("Die Height ist : {:?}", height as i32);
                     
                         if !incoming_mempool_txs.contains_key(&tx.txid()) {
-                            let addr = "";
+                            let addr = "Incoming Metadata";
                             let amt = note.value;
                             let memo_mem = memo.clone();
                             let mut wtx = WalletTx::new(height as i32, now() as u64, &tx.txid());
@@ -1429,6 +1429,10 @@ for output in tx.shielded_outputs.iter() {
                                 value: amt,
                                 memo: memo_mem.clone(), 
                             };
+
+                            println!("Incoming Metadata addr : {}", incoming_metadata.address);
+                            println!("Incoming Metadata amt : {}", incoming_metadata.value);
+                            println!("Incoming Metadata memo : {:?}", incoming_metadata.memo);
                     
                             // Fügen incoming_metadata zu einem Vektor hinzu
                             wtx.incoming_metadata.push(incoming_metadata);
