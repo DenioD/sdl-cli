@@ -1515,7 +1515,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, datetime: u64,
                         if !incoming_mempool_txs.contains_key(&tx.txid()) {
                             let addr = "Incoming Metadata";
                             let amt = note.value;
-                            let mut wtx = WalletTx::new(height, datetime, &tx.txid());
+                            let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
 
                             let incoming_metadata = IncomingTxMetadata {
                                 address: addr.to_string(),
