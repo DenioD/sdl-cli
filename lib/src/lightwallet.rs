@@ -1493,12 +1493,9 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, datetime: u64,
             };
 
             if let Some((note, _to, memo)) = try_sapling_note_decryption(&ivk, &epk_prime, &cmu, ct) {
-                println!("Transaction successfully decrypted with ivk: {:?}", ivk);
-                println!("note : {:?}", note);
 
-                if let Some(memo_utf8) = memo.to_utf8() {
-                    println!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
-                    println!("The memo was: {:?}", memo_utf8);
+             //   if let Some(memo_utf8) = memo.to_utf8() {
+                   
 
                     if mempool_transaction {
                         println!("Mempool tx present");
@@ -1557,23 +1554,19 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, datetime: u64,
                             }
                             
 
-                            println!("Successfully added txid");
+                            info!("Successfully added txid");
                         } else {
-                            println!("Txid already in mempool");
+                            info!("Txid already in mempool");
                         }
                     } else {
-                        println!("Not a mempool transaction");
+                        info!("Not a mempool transaction");
                     }
-                }
+               // }
             }
            
         }
     }
 }
-
-
-
-
 
     // Invalidate all blocks including and after "at_height".
     // Returns the number of blocks invalidated
