@@ -1521,12 +1521,19 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                         let addr = encode_payment_address(self.config.hrp_sapling_address(), &_to);
                         let amt = note.value;
                         let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
-    
+                        
+                        // Konvertierung des Memos in das gewünschte Format und Behandlung eines möglichen Fehlers
+                        let formatted_memo = LightWallet::memo_str(&Some(memo.clone()));
+
+                        let position = if formatted_memo.as_ref().map_or(false, |m| m.starts_with('{')) { 1 } else { 2 };
+                        println!("position : {:?}", position);
+                        
                         let incoming_metadata = IncomingTxMetadata {
                             address: addr.clone(), // Verwendung der tatsächlichen Adresse
                             value: amt,
                             memo: memo.clone(), // Verwendung des formatierten Memos
                             incoming_mempool: true,
+                            position: position,
                         };
     
                         wtx.incoming_metadata.push(incoming_metadata);
@@ -1549,6 +1556,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                                 value: amt,
                                 memo: memo.clone(),
                                 incoming_mempool: true,
+                                position: position,
                             });
                         } else {
                             let mut new_wtx = WalletTx::new(height, now() as u64, &tx.txid());
@@ -1557,28 +1565,14 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                                 value: amt,
                                 memo: memo.clone(),
                                 incoming_mempool: true,
+                                position: position,
                             });
                             txs.insert(tx.txid(), new_wtx);
                         }
     
                         println!("Successfully added txid");
                     
-                        if memo.to_utf8().is_some() {
-                            let txid = tx.txid();
                         
-                          
-                        
-                            // Nur dann ein Write-Lock erwerben, wenn eine Aktualisierung notwendig ist
-                           
-                              //  let mut txs = self.txs.write().unwrap(); // Schreibzugriff wird hier erlangt
-                                if let Some(nd) = txs.get_mut(&txid)
-                                                    .and_then(|t| t.notes.iter_mut().find(|nd| nd.note == note)) {
-                                    nd.memo = Some(memo.clone());
-                                } else {
-                                    println!("No txid matched for incoming sapling funds while updating memo");
-                                }
-                            
-                        }
                         
         
                     } else {

@@ -366,6 +366,7 @@ pub struct IncomingTxMetadata {
     pub value  : u64,
     pub memo   : Memo,
     pub incoming_mempool: bool,
+    pub position: u64,
 }
 
 impl IncomingTxMetadata {
@@ -377,6 +378,7 @@ impl IncomingTxMetadata {
 
         let value = reader.read_u64::<LittleEndian>()?;
         let incoming_mempool = true;
+        let position = 0;
 
         let mut memo_bytes = [0u8; 512];
         reader.read_exact(&mut memo_bytes)?;
@@ -387,6 +389,7 @@ impl IncomingTxMetadata {
             value,
             memo,
             incoming_mempool,
+            position,
         })
     }
 
