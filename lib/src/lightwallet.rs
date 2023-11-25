@@ -1482,10 +1482,9 @@ pub fn scan_full_tx(&self, tx: &Transaction, height: i32, datetime: u64) {
 }
 
 pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64, mempool_transaction: bool) {
-    println!("Mempool transaction ? {}", mempool_transaction);
 
     if tx.shielded_outputs.is_empty() {
-        println!("Keine shielded_outputs vorhanden");
+        error!("Something went wrong, there are no shielded outputs");
         return;
     }
 
@@ -1504,15 +1503,8 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                 continue;
             }
             };
-
-            println!("Nach try_sapling_note_decryption");
-                println!("vor der prüfung");
-                // Konvertierung des Memos in das gewünschte Format
-              //  let formatted_memo = memo.to_utf8().unwrap_or_else(|| String::from("Standardmemo"));
     
-                if mempool_transaction {
-                    println!("Mempool tx present");
-    
+                if mempool_transaction {    
                     let mut incoming_mempool_txs = match self.incoming_mempool_txs.write() {
                         Ok(txs) => txs,
                         Err(e) => {
@@ -1521,31 +1513,24 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                         }
                     };
     
-                   // if !incoming_mempool_txs.contains_key(&tx.txid()) {
                         let addr = encode_payment_address(self.config.hrp_sapling_address(), &_to);
                         let amt = note.value;
                         let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
                         
-                        // Konvertierung des Memos in das gewünschte Format und Behandlung eines möglichen Fehlers
+                        // we try to get the position of the memo. 1 should be header, 2 should be memo
                         let formatted_memo = LightWallet::memo_str(&Some(memo.clone()));
-
                         let position = if formatted_memo.as_ref().map_or(false, |m| m.starts_with('{')) { 1 } else { 2 };
-                        println!("position : {:?}", position);
-
-                        
+                      
                         let incoming_metadata = IncomingTxMetadata {
-                            address: addr.clone(), // Verwendung der tatsächlichen Adresse
+                            address: addr.clone(),
                             value: amt,
-                            memo: memo.clone(), // Verwendung des formatierten Memos
+                            memo: memo.clone(), 
                             incoming_mempool: true,
                             position: position,
                         };
     
                         wtx.incoming_metadata.push(incoming_metadata);
                         incoming_mempool_txs.entry(tx.txid()).or_insert_with(Vec::new).push(wtx);
-
-                        println!("Memo : {:?}", memo.clone());
-                        println!("Adresse : {:?}", addr.clone());
     
                         let mut txs = match self.txs.write() {
                             Ok(t) => t,
@@ -1554,7 +1539,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                                 return;
                             }
                         };
-                        
+                        // Optional
                         if let Some(wtx) = txs.get_mut(&tx.txid()) {
                             wtx.incoming_metadata.push(IncomingTxMetadata {
                                 address: addr.clone(),
@@ -1575,16 +1560,9 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                             txs.insert(tx.txid(), new_wtx);
                         }
     
-                        println!("Successfully added txid");
-                    
-                        
-                        
-        
-                   // } else {
-                      //  println!("Txid already in mempool");
-                  //  }
+                        info!("Successfully added txid");
                 } else {
-                    println!("Not a mempool transaction");
+                    error!("Not a mempool transaction");
                 }
                  // Mark this Tx as scanned
     {
@@ -1595,7 +1573,6 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
         };
     }
             }
-      //  }
     }
 }    
 

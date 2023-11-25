@@ -210,7 +210,6 @@ where
 
     let request = Request::new(Empty {});
    
-
     let mut response = client
             .get_mempool_stream(request)
             .await
@@ -227,7 +226,6 @@ where
 
     Ok(())
 }
-
 
 pub fn fetch_transparent_txids<F : 'static + std::marker::Send>(uri: &http::Uri, address: String, 
         start_height: u64, end_height: u64, no_cert: bool, c: F) -> Result<(), String>

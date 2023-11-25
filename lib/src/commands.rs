@@ -250,7 +250,6 @@ impl Command for BalanceCommand {
     }
 }
 
-
 struct AddressCommand {}
 impl Command for AddressCommand {
     fn help(&self) -> String {
@@ -778,11 +777,11 @@ impl Command for NewAddressCommand {
         let mut h = vec![];
         h.push("Create a new address in this wallet");
         h.push("Usage:");
-        h.push("new [z | t]");
+        h.push("new [z | r]");
         h.push("");
         h.push("Example:");
-        h.push("To create a new z address:");
-        h.push("new z");
+        h.push("To create a new zs address:");
+        h.push("new zs");
         h.join("\n")
     }
 
