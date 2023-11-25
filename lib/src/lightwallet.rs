@@ -72,6 +72,7 @@ use walletzkey::{WalletZKey, WalletTKey, WalletZKeyType};
 pub const MAX_REORG: usize = 100;
 pub const GAP_RULE_UNUSED_ADDRESSES: usize = 5;
 
+
 fn now() -> f64 {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as f64
 }
@@ -136,7 +137,10 @@ pub struct LightWallet {
     // This is not stored to disk. 
     pub mempool_txs: Arc<RwLock<HashMap<TxId, WalletTx>>>,
 
-    pub incoming_mempool_txs: Arc<RwLock<HashMap<TxId, WalletTx>>>,
+    //pub incoming_mempool_txs: Arc<RwLock<HashMap<TxId, WalletTx>>>,
+
+    pub incoming_mempool_txs: Arc<RwLock<HashMap<TxId, Vec<WalletTx>>>>,
+
 
     // The block at which this wallet was born. Rescans
     // will start from here.
@@ -1527,6 +1531,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
 
                         let position = if formatted_memo.as_ref().map_or(false, |m| m.starts_with('{')) { 1 } else { 2 };
                         println!("position : {:?}", position);
+
                         
                         let incoming_metadata = IncomingTxMetadata {
                             address: addr.clone(), // Verwendung der tatsächlichen Adresse
@@ -1537,7 +1542,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                         };
     
                         wtx.incoming_metadata.push(incoming_metadata);
-                        incoming_mempool_txs.insert(tx.txid(), wtx);
+                        incoming_mempool_txs.entry(tx.txid()).or_insert_with(Vec::new).push(wtx);
 
                         println!("Memo : {:?}", memo.clone());
                         println!("Adresse : {:?}", addr.clone());
@@ -2415,23 +2420,24 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
 
     pub fn cleanup_incoming_mempool(&self) {
         const DEFAULT_TX_EXPIRY_DELTA: i32 = 20;
-
         let current_height = self.blocks.read().unwrap().last().map(|b| b.height).unwrap_or(0);
-
+    
         {
             // Remove all expired Txns
-            self.incoming_mempool_txs.write().unwrap().retain( | _, wtx| {
-                current_height < (wtx.block + DEFAULT_TX_EXPIRY_DELTA)    
+            self.incoming_mempool_txs.write().unwrap().retain(|_, wtxs| {
+                wtxs.retain(|wtx| current_height < (wtx.block + DEFAULT_TX_EXPIRY_DELTA));
+                !wtxs.is_empty() // Behalte den Eintrag nur, wenn nicht alle Transaktionen abgelaufen sind
             });
         }
-
+    
         {
             // Remove all txns where the txid is added to the wallet directly
-            self.incoming_mempool_txs.write().unwrap().retain ( |txid, _| {
+            self.incoming_mempool_txs.write().unwrap().retain(|txid, _| {
                 self.txs.read().unwrap().get(txid).is_none()
             });
         }
     }
+    
 }
 
 #[cfg(test)]

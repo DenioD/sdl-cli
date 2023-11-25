@@ -947,25 +947,27 @@ impl LightClient {
     
 
             tx_list.extend(
-                wallet.incoming_mempool_txs.read().unwrap().iter().flat_map(|(_, wtx)| {
-                    wtx.incoming_metadata.iter()
-                       // .filter(|nd| !nd.is_change) // Deine Logik, um Nicht-Wechselnoten zu filtern
-                        .enumerate()
-                        .map(move|(i, om)| 
-                            object! {
-                                "block_height" => wtx.block.clone(),
-                                "datetime"     => wtx.datetime.clone(),
-                                "position"     => i,
-                                "txid"         => format!("{}", wtx.txid),
-                                "amount"       => om.value as i64,
-                                "address"      => om.address.clone(),
-                                "memo"         => LightWallet::memo_str(&Some(om.memo.clone())),
-                                "unconfirmed"  => true,
-                                "incoming_mempool" => true,
-                            }
-                        )
+                wallet.incoming_mempool_txs.read().unwrap().iter().flat_map(|(_, wtxs)| {
+                    wtxs.iter().flat_map(|wtx| {
+                        wtx.incoming_metadata.iter()
+                            .enumerate()
+                            .map(move |(i, om)| 
+                                object! {
+                                    "block_height" => wtx.block.clone(),
+                                    "datetime"     => wtx.datetime.clone(),
+                                    "position"     => om.position,
+                                    "txid"         => format!("{}", wtx.txid),
+                                    "amount"       => om.value as i64,
+                                    "address"      => om.address.clone(),
+                                    "memo"         => LightWallet::memo_str(&Some(om.memo.clone())),
+                                    "unconfirmed"  => true,
+                                    "incoming_mempool" => true,
+                                }
+                            )
+                    })
                 })
             );
+            
             
         
            // .flatten(); 
