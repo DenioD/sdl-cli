@@ -1488,82 +1488,85 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                 return;
             }
         };
-
+    
         let cmu = output.cmu;
         let ct  = &output.enc_ciphertext;
-
+    
         for ivk in ivks {
             let epk_prime = match output.ephemeral_key.as_prime_order(&JUBJUB) {
                 Some(epk) => epk,
                 None => continue, // Skip this iteration if as_prime_order fails
             };
-
-            if let Some((note, _to, memo)) = try_sapling_note_decryption(&ivk, &epk_prime, &cmu, ct) {
-
-                    if mempool_transaction {
-                        info!("Mempool tx present");
-  
-                        let mut incoming_mempool_txs = match self.incoming_mempool_txs.write() {
-                            Ok(txs) => txs,
+    
+            if let Some((note, to, memo)) = try_sapling_note_decryption(&ivk, &epk_prime, &cmu, ct) {
+    
+                // Formatierung des memos in das gewünschte Format
+                // Beispiel: Umwandlung in UTF-8, falls erforderlich
+               
+    
+                if mempool_transaction {
+                    info!("Mempool tx present");
+      
+                    let mut incoming_mempool_txs = match self.incoming_mempool_txs.write() {
+                        Ok(txs) => txs,
+                        Err(e) => {
+                            error!("Error acquiring write lock: {}", e);
+                            return;
+                        }
+                    };
+    
+                    if !incoming_mempool_txs.contains_key(&tx.txid()) {
+                        let addr = encode_payment_address(self.config.hrp_sapling_address(), &to);
+                        let amt = note.value;
+                        let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
+    
+                        let incoming_metadata = IncomingTxMetadata {
+                            address: addr.clone(), // Verwendung der korrekten Adresse
+                            value: amt,
+                            memo: memo.clone(), // Verwendung des formatierten Memos
+                            incoming_mempool: true,
+                        };
+    
+                        wtx.incoming_metadata.push(incoming_metadata);
+                        incoming_mempool_txs.insert(tx.txid(), wtx);
+    
+                        let mut txs = match self.txs.write() {
+                            Ok(t) => t,
                             Err(e) => {
                                 error!("Error acquiring write lock: {}", e);
                                 return;
                             }
                         };
-
-                        if !incoming_mempool_txs.contains_key(&tx.txid()) {
-                            let addr = "Incoming Metadata";
-                            let amt = note.value;
-                            let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
-
-                            let incoming_metadata = IncomingTxMetadata {
-                                address: addr.to_string(),
+                        
+                        if let Some(wtx) = txs.get_mut(&tx.txid()) {
+                            wtx.incoming_metadata.push(IncomingTxMetadata {
+                                address: addr.clone(),
                                 value: amt,
-                                memo: memo.clone(), 
+                                memo: memo.clone(),
                                 incoming_mempool: true,
-                            };
-
-                            wtx.incoming_metadata.push(incoming_metadata);
-                            incoming_mempool_txs.insert(tx.txid(), wtx);
-
-                            let mut txs = match self.txs.write() {
-                                Ok(t) => t,
-                                Err(e) => {
-                                    error!("Error acquiring write lock: {}", e);
-                                    return;
-                                }
-                            };
-                            
-                            if let Some(wtx) = txs.get_mut(&tx.txid()) {
-                                wtx.incoming_metadata.push(IncomingTxMetadata {
-                                    address: addr.to_string(),
-                                    value: amt,
-                                    memo: memo.clone(),
-                                    incoming_mempool: true,
-                                });
-                            } else {
-                                let mut new_wtx = WalletTx::new(height, now() as u64, &tx.txid());
-                                new_wtx.incoming_metadata.push(IncomingTxMetadata {
-                                    address: addr.to_string(),
-                                    value: amt,
-                                    memo: memo.clone(),
-                                    incoming_mempool: true,
-                                });
-                                txs.insert(tx.txid(), new_wtx);
-                            }
-                            
-
-                            info!("Successfully added txid");
+                            });
                         } else {
-                            info!("Txid already in mempool");
+                            let mut new_wtx = WalletTx::new(height, now() as u64, &tx.txid());
+                            new_wtx.incoming_metadata.push(IncomingTxMetadata {
+                                address: addr.clone(),
+                                value: amt,
+                                memo: memo.clone(),
+                                incoming_mempool: true,
+                            });
+                            txs.insert(tx.txid(), new_wtx);
                         }
+    
+                        info!("Successfully added txid");
                     } else {
-                        info!("Not a mempool transaction");
+                        info!("Txid already in mempool");
                     }
+                } else {
+                    info!("Not a mempool transaction");
+                }
             }
-           
         }
     }
+    
 }
 
     // Invalidate all blocks including and after "at_height".
