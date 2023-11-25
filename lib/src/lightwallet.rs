@@ -1526,6 +1526,9 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                             memo: memo.clone(), // Verwendung des formatierten Memos
                             incoming_mempool: true,
                         };
+
+                        println!("Addresse : {}", addr.clone());
+                        println!("Memo : {:?}", memo.clone());
     
                         wtx.incoming_metadata.push(incoming_metadata);
                         incoming_mempool_txs.insert(tx.txid(), wtx);
