@@ -1517,7 +1517,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                         }
                     };
     
-                    if !incoming_mempool_txs.contains_key(&tx.txid()) {
+                   // if !incoming_mempool_txs.contains_key(&tx.txid()) {
                         let addr = encode_payment_address(self.config.hrp_sapling_address(), &_to);
                         let amt = note.value;
                         let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
@@ -1575,12 +1575,20 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                         
                         
         
-                    } else {
-                        println!("Txid already in mempool");
-                    }
+                   // } else {
+                      //  println!("Txid already in mempool");
+                  //  }
                 } else {
                     println!("Not a mempool transaction");
                 }
+                 // Mark this Tx as scanned
+    {
+        let mut txs = self.txs.write().unwrap();
+        match txs.get_mut(&tx.txid()) {
+            Some(wtx) => wtx.full_tx_scanned = true,
+            None => {},
+        };
+    }
             }
       //  }
     }
