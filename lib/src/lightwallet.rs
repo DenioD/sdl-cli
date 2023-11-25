@@ -1541,6 +1541,26 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                             }
                         };
                         
+
+                        if memo.to_utf8().is_some() {
+                // info!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
+                // Do it in a short scope because of the write lock.   
+                let mut txs = self.txs.write().unwrap();
+                   // Update memo if we have this Tx. 
+                   match txs.get_mut(&tx.txid())
+                   .and_then(|t| {
+                       t.notes.iter_mut().find(|nd| nd.note == note)
+                   }) {
+                    None => {
+                        info!("No txid matched for incoming sapling funds while updating memo"); 
+                        ()
+                    },
+                       Some(nd) => {
+                           nd.memo = Some(memo.clone())
+                       }
+                   }
+            }
+                        
                         if let Some(wtx) = txs.get_mut(&tx.txid()) {
                             wtx.incoming_metadata.push(IncomingTxMetadata {
                                 address: addr.clone(),
@@ -1556,6 +1576,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                                 memo: memo.clone(),
                                 incoming_mempool: true,
                             });
+                        
                             txs.insert(tx.txid(), new_wtx);
                         }
     
