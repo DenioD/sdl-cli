@@ -1480,33 +1480,35 @@ pub fn scan_full_tx(&self, tx: &Transaction, height: i32, datetime: u64) {
 pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64, mempool_transaction: bool) {
     println!("Mempool transaction ? {}", mempool_transaction);
 
+    if tx.shielded_outputs.is_empty() {
+        println!("Keine shielded_outputs vorhanden");
+        return;
+    }
+
     for output in tx.shielded_outputs.iter() {
-        let ivks = match self.zkeys.read() {
-            Ok(keys) => keys.iter().map(|zk| zk.extfvk.fvk.vk.ivk()).collect::<Vec<_>>(),
-            Err(e) => {
-                error!("Error reading zkeys: {}", e);
-                return;
-            }
-        };
-    
+        let ivks: Vec<_> = self.zkeys.read().unwrap().iter()
+            .map(|zk| zk.extfvk.fvk.vk.ivk()
+            ).collect();
         let cmu = output.cmu;
-        let ct  = &output.enc_ciphertext;
-    
+        let ct  = output.enc_ciphertext;
+        // Search all of our keys
         for ivk in ivks {
-            let epk_prime = match output.ephemeral_key.as_prime_order(&JUBJUB) {
-                Some(epk) => epk,
-                None => continue, // Skip this iteration if as_prime_order fails
+            let epk_prime = output.ephemeral_key.as_prime_order(&JUBJUB).unwrap();
+            let (note, _to, memo) = match try_sapling_note_decryption(&ivk, &epk_prime, &cmu, &ct) {
+                Some(ret) => ret,
+                None => {println!("note encryption failed");
+                continue;
+            }
             };
-    
-            if let Some((note, to, memo)) = try_sapling_note_decryption(&ivk, &epk_prime, &cmu, ct) {
-    
-                // Formatierung des memos in das gewünschte Format
-                // Beispiel: Umwandlung in UTF-8, falls erforderlich
-               
+
+            println!("Nach try_sapling_note_decryption");
+                println!("vor der prüfung");
+                // Konvertierung des Memos in das gewünschte Format
+              //  let formatted_memo = memo.to_utf8().unwrap_or_else(|| String::from("Standardmemo"));
     
                 if mempool_transaction {
-                    info!("Mempool tx present");
-      
+                    println!("Mempool tx present");
+    
                     let mut incoming_mempool_txs = match self.incoming_mempool_txs.write() {
                         Ok(txs) => txs,
                         Err(e) => {
@@ -1516,22 +1518,22 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                     };
     
                     if !incoming_mempool_txs.contains_key(&tx.txid()) {
-                        let addr = encode_payment_address(self.config.hrp_sapling_address(), &to);
+                        let addr = encode_payment_address(self.config.hrp_sapling_address(), &_to);
                         let amt = note.value;
                         let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
     
                         let incoming_metadata = IncomingTxMetadata {
-                            address: addr.clone(), // Verwendung der korrekten Adresse
+                            address: addr.clone(), // Verwendung der tatsächlichen Adresse
                             value: amt,
                             memo: memo.clone(), // Verwendung des formatierten Memos
                             incoming_mempool: true,
                         };
-
-                        println!("Addresse : {}", addr.clone());
-                        println!("Memo : {:?}", memo.clone());
     
                         wtx.incoming_metadata.push(incoming_metadata);
                         incoming_mempool_txs.insert(tx.txid(), wtx);
+
+                        println!("Memo : {:?}", memo.clone());
+                        println!("Adresse : {:?}", addr.clone());
     
                         let mut txs = match self.txs.write() {
                             Ok(t) => t,
@@ -1540,26 +1542,6 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                                 return;
                             }
                         };
-                        
-
-                        if memo.to_utf8().is_some() {
-                // info!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
-                // Do it in a short scope because of the write lock.   
-                let mut txs = self.txs.write().unwrap();
-                   // Update memo if we have this Tx. 
-                   match txs.get_mut(&tx.txid())
-                   .and_then(|t| {
-                       t.notes.iter_mut().find(|nd| nd.note == note)
-                   }) {
-                    None => {
-                        info!("No txid matched for incoming sapling funds while updating memo"); 
-                        ()
-                    },
-                       Some(nd) => {
-                           nd.memo = Some(memo.clone())
-                       }
-                   }
-            }
                         
                         if let Some(wtx) = txs.get_mut(&tx.txid()) {
                             wtx.incoming_metadata.push(IncomingTxMetadata {
@@ -1576,22 +1558,39 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                                 memo: memo.clone(),
                                 incoming_mempool: true,
                             });
-                        
                             txs.insert(tx.txid(), new_wtx);
                         }
     
-                        info!("Successfully added txid");
+                        println!("Successfully added txid");
+                    
+                        if memo.to_utf8().is_some() {
+                            let txid = tx.txid();
+                        
+                          
+                        
+                            // Nur dann ein Write-Lock erwerben, wenn eine Aktualisierung notwendig ist
+                           
+                              //  let mut txs = self.txs.write().unwrap(); // Schreibzugriff wird hier erlangt
+                                if let Some(nd) = txs.get_mut(&txid)
+                                                    .and_then(|t| t.notes.iter_mut().find(|nd| nd.note == note)) {
+                                    nd.memo = Some(memo.clone());
+                                } else {
+                                    println!("No txid matched for incoming sapling funds while updating memo");
+                                }
+                            
+                        }
+                        
+        
                     } else {
-                        info!("Txid already in mempool");
+                        println!("Txid already in mempool");
                     }
                 } else {
-                    info!("Not a mempool transaction");
+                    println!("Not a mempool transaction");
                 }
             }
-        }
+      //  }
     }
-    
-}
+}    
 
     // Invalidate all blocks including and after "at_height".
     // Returns the number of blocks invalidated
