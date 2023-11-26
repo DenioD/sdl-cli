@@ -1529,11 +1529,11 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                     }
                     
                     let position = if formatted_memo.as_ref().map_or(false, |m| m.starts_with('{')) {
-                        0
+                        1
                     } else {
                         existing_txs.iter()
                             .filter(|tx| !LightWallet::memo_str(&Some(tx.incoming_metadata.iter().last().unwrap().memo.clone())).as_ref().map_or(false, |m| m.starts_with('{')))
-                            .count() as u64 + 1
+                            .count() as u64 + 2
                     };
                     
                     let incoming_metadata = IncomingTxMetadata {
