@@ -1057,18 +1057,20 @@ impl LightWallet {
     }
 
     pub fn zbalance(&self, addr: Option<String>) -> u64 {
-        self.txs.read().unwrap() 
+        let unconfirmed_balance = self.unconfirmed_zbalance(addr.clone());
+
+        let confirmed_balance = self.txs.read().unwrap()
             .values()
-            .map (|tx| {
+            .map(|tx| {
                 tx.notes.iter()
-                    .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
+                    .filter(|nd| {
                         match addr.as_ref() {
                             Some(a) => *a == encode_payment_address(
-                                                self.config.hrp_sapling_address(),
-                                                &nd.extfvk.fvk.vk
-                                                    .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
-                                            ),
-                            None    => true
+                                            self.config.hrp_sapling_address(),
+                                            &nd.extfvk.fvk.vk
+                                                .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
+                                        ),
+                            None => true
                         }
                     })
                     .map(|nd| {
@@ -1080,9 +1082,13 @@ impl LightWallet {
                     })
                     .sum::<u64>()
             })
-            .sum::<u64>() as u64
-
+            .sum::<u64>();
+    
+       // let unconfirmed_balance = self.unconfirmed_zbalance(addr);
+    
+        confirmed_balance + unconfirmed_balance
     }
+    
 
     // Get all (unspent) utxos. Unconfirmed spent utxos are included
     pub fn get_utxos(&self) -> Vec<Utxo> {
@@ -1177,6 +1183,30 @@ impl LightWallet {
             .sum::<u64>() as u64
     }
 
+    pub fn unconfirmed_zbalance(&self, addr: Option<String>) -> u64 {   
+        self.incoming_mempool_txs.read().unwrap()
+            .values()
+            .flat_map(|txs| txs.iter())
+            .map(|tx| {
+                tx.incoming_metadata.iter()
+                    .filter(|meta| {
+                        match addr.as_ref() {
+                            Some(a) => {
+ 
+                                a == &meta.address
+                            },
+                            None => true
+                        }
+                    })
+                    .map(|meta| {
+
+                        meta.value
+                    })
+                    .sum::<u64>()
+            })
+            .sum::<u64>()
+    }
+    
     pub fn have_spendingkey_for_extfvk(&self, extfvk: &ExtendedFullViewingKey) -> bool {
         match self.zkeys.read().unwrap().iter().find(|zk| zk.extfvk == *extfvk) {
             None => false,
@@ -1482,7 +1512,6 @@ pub fn scan_full_tx(&self, tx: &Transaction, height: i32, datetime: u64) {
 }
 
 pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64, mempool_transaction: bool) {
-
     if tx.shielded_outputs.is_empty() {
         error!("Something went wrong, there are no shielded outputs");
         return;
@@ -1490,45 +1519,43 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
 
     for output in tx.shielded_outputs.iter() {
         let ivks: Vec<_> = self.zkeys.read().unwrap().iter()
-            .map(|zk| zk.extfvk.fvk.vk.ivk()
-            ).collect();
+            .map(|zk| zk.extfvk.fvk.vk.ivk())
+            .collect();
+        
         let cmu = output.cmu;
-        let ct  = output.enc_ciphertext;
+        let ct = output.enc_ciphertext;
+
         // Search all of our keys
         for ivk in ivks {
             let epk_prime = output.ephemeral_key.as_prime_order(&JUBJUB).unwrap();
             let (note, _to, memo) = match try_sapling_note_decryption(&ivk, &epk_prime, &cmu, &ct) {
                 Some(ret) => ret,
-                None => {
-                continue;
-            }
+                None => continue,
             };
-    
-                if mempool_transaction {    
-                    let mut incoming_mempool_txs = match self.incoming_mempool_txs.write() {
-                        Ok(txs) => txs,
-                        Err(e) => {
-                            error!("Error acquiring write lock: {}", e);
-                            return;
-                        }
-                    };
-    
-                    let addr = encode_payment_address(self.config.hrp_sapling_address(), &_to);
-                    let amt = note.value;
-                    let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
-                    
-                    let formatted_memo = LightWallet::memo_str(&Some(memo.clone()));
-                    
-                    let mut existing_txs = incoming_mempool_txs.entry(tx.txid())
-                        .or_insert_with(Vec::new);
-                    
-                    if !formatted_memo.is_none() {
-                    // Überprüfen, ob eine Transaktion mit dem exakt gleichen memo bereits existiert
-                    if existing_txs.iter().any(|tx| tx.incoming_metadata.iter().any(|meta| LightWallet::memo_str(&Some(meta.memo.clone())) == formatted_memo.as_ref().cloned())) {
-                        // Transaktion mit diesem Memo existiert bereits, nichts weiter tun
+
+            if mempool_transaction {    
+                let mut incoming_mempool_txs = match self.incoming_mempool_txs.write() {
+                    Ok(txs) => txs,
+                    Err(e) => {
+                        error!("Error acquiring write lock: {}", e);
                         return;
                     }
-                    
+                };
+
+                let addr = encode_payment_address(self.config.hrp_sapling_address(), &_to);
+                let amt = note.value;
+                let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
+                let formatted_memo = LightWallet::memo_str(&Some(memo.clone()));
+                let existing_txs = incoming_mempool_txs.entry(tx.txid())
+                    .or_insert_with(Vec::new);
+
+                    if formatted_memo.as_ref().map_or(false, |m| !m.is_empty()) {
+                    // Check if a transaction with the exact same memo already exists
+                    if existing_txs.iter().any(|tx| tx.incoming_metadata.iter().any(|meta| LightWallet::memo_str(&Some(meta.memo.clone())) == formatted_memo.as_ref().cloned())) {
+                        // Transaction with this memo already exists, do nothing
+                        return;
+                    }
+
                     let position = if formatted_memo.as_ref().map_or(false, |m| m.starts_with('{')) {
                         1
                     } else {
@@ -1536,7 +1563,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                             .filter(|tx| !LightWallet::memo_str(&Some(tx.incoming_metadata.iter().last().unwrap().memo.clone())).as_ref().map_or(false, |m| m.starts_with('{')))
                             .count() as u64 + 2
                     };
-                    
+
                     let incoming_metadata = IncomingTxMetadata {
                         address: addr.clone(),
                         value: amt,
@@ -1544,58 +1571,9 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                         incoming_mempool: true,
                         position: position,
                     };
-                    
+
                     wtx.incoming_metadata.push(incoming_metadata);
                     existing_txs.push(wtx);
-                    
-                    
-    
-                        let mut txs = match self.txs.write() {
-                            Ok(t) => t,
-                            Err(e) => {
-                                error!("Error acquiring write lock: {}", e);
-                                return;
-                            }
-                        };
-                        // Optional
-                        if let Some(wtx) = txs.get_mut(&tx.txid()) {
-                            wtx.incoming_metadata.push(IncomingTxMetadata {
-                                address: addr.clone(),
-                                value: amt,
-                                memo: memo.clone(),
-                                incoming_mempool: true,
-                                position: position,
-                            });
-                        } else {
-                            let mut new_wtx = WalletTx::new(height, now() as u64, &tx.txid());
-                            new_wtx.incoming_metadata.push(IncomingTxMetadata {
-                                address: addr.clone(),
-                                value: amt,
-                                memo: memo.clone(),
-                                incoming_mempool: true,
-                                position: position,
-                            });
-                            txs.insert(tx.txid(), new_wtx);
-                        }
-    
-                        info!("Successfully added txid");
-                } 
-             else {
-
-                let position = 0;
-
-                let incoming_metadata = IncomingTxMetadata {
-                    address: addr.clone(),
-                    value: amt,
-                    memo: memo.clone(), 
-                    incoming_mempool: true,
-                    position: position,
-                };
-                
-                wtx.incoming_metadata.push(incoming_metadata);
-                existing_txs.push(wtx);
-                
-                
 
                     let mut txs = match self.txs.write() {
                         Ok(t) => t,
@@ -1604,7 +1582,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                             return;
                         }
                     };
-                    // Optional
+
                     if let Some(wtx) = txs.get_mut(&tx.txid()) {
                         wtx.incoming_metadata.push(IncomingTxMetadata {
                             address: addr.clone(),
@@ -1625,28 +1603,82 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                         txs.insert(tx.txid(), new_wtx);
                     }
 
-                    info!("Successfully added txid");
-                }
+                    info!("Successfully added txid with memo");
+                } else {
+                    let position = 0;
 
+                    // Check if txid already exists in the hashmap
+                    let txid_exists = match self.txs.read() {
+                        Ok(t) => t.contains_key(&tx.txid()),
+                        Err(e) => {
+                            println!("Error acquiring read lock: {}", e);
+                            return;
+                        }
+                    };
 
-            }
-            
-            
-            
-            else {
-                    error!("Not a mempool transaction");
+                    if txid_exists {
+                        // If txid already exists, do not process further
+                        println!("Txid already exists, not adding");
+                        return;
+                    }
+
+                    let incoming_metadata = IncomingTxMetadata {
+                        address: addr.clone(),
+                        value: amt,
+                        memo: memo.clone(), 
+                        incoming_mempool: true,
+                        position: position,
+                    };
+
+                    wtx.incoming_metadata.push(incoming_metadata);
+                    existing_txs.push(wtx);
+
+                    let mut txs = match self.txs.write() {
+                        Ok(t) => t,
+                        Err(e) => {
+                            error!("Error acquiring write lock: {}", e);
+                            return;
+                        }
+                    };
+
+                    if let Some(wtx) = txs.get_mut(&tx.txid()) {
+                        wtx.incoming_metadata.push(IncomingTxMetadata {
+                            address: addr.clone(),
+                            value: amt,
+                            memo: memo.clone(),
+                            incoming_mempool: true,
+                            position: position,
+                        });
+                    } else {
+                        let mut new_wtx = WalletTx::new(height, now() as u64, &tx.txid());
+                        new_wtx.incoming_metadata.push(IncomingTxMetadata {
+                            address: addr.clone(),
+                            value: amt,
+                            memo: memo.clone(),
+                            incoming_mempool: true,
+                            position: position,
+                        });
+                        txs.insert(tx.txid(), new_wtx);
+                    }
+
+                    println!("Successfully added txid");
                 }
-                 // Mark this Tx as scanned
-    {
-        let mut txs = self.txs.write().unwrap();
-        match txs.get_mut(&tx.txid()) {
-            Some(wtx) => wtx.full_tx_scanned = true,
-            None => {},
-        };
-    }
+            } else {
+                println!("Not a mempool transaction");
             }
+
+            // Mark this Tx as scanned
+            {
+                let mut txs = self.txs.write().unwrap();
+                match txs.get_mut(&tx.txid()) {
+                    Some(wtx) => wtx.full_tx_scanned = true,
+                    None => {},
+                };
+            }
+        }
     }
-}    
+}
+   
 
     // Invalidate all blocks including and after "at_height".
     // Returns the number of blocks invalidated

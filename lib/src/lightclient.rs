@@ -633,6 +633,7 @@ impl LightClient {
             object!{
                 "address" => zaddress.clone(),
                 "zbalance" => wallet.zbalance(Some(zaddress.clone())),
+                "unconfirmed" => wallet.unconfirmed_zbalance(Some(zaddress.clone())),
                 "verified_zbalance" => wallet.verified_zbalance(Some(zaddress.clone())),
                 "spendable_zbalance" => wallet.spendable_zbalance(Some(zaddress.clone()))
             }
@@ -651,6 +652,7 @@ impl LightClient {
 
         object!{
             "zbalance"           => wallet.zbalance(None),
+            "unconfirmed"        => wallet.unconfirmed_zbalance(None),
             "verified_zbalance"  => wallet.verified_zbalance(None),
             "spendable_zbalance" => wallet.spendable_zbalance(None),
             "tbalance"           => wallet.tbalance(None), 
@@ -951,7 +953,7 @@ impl LightClient {
                     wtxs.iter().flat_map(|wtx| {
                         wtx.incoming_metadata.iter()
                             .enumerate()
-                            .map(move |(i, om)| 
+                            .map(move |(_i, om)| 
                                 object! {
                                     "block_height" => wtx.block.clone(),
                                     "datetime"     => wtx.datetime.clone(),
