@@ -1513,24 +1513,41 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                         }
                     };
     
-                        let addr = encode_payment_address(self.config.hrp_sapling_address(), &_to);
-                        let amt = note.value;
-                        let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
-                        
-                        // we try to get the position of the memo. 1 should be header, 2 should be memo
-                        let formatted_memo = LightWallet::memo_str(&Some(memo.clone()));
-                        let position = if formatted_memo.as_ref().map_or(false, |m| m.starts_with('{')) { 1 } else { 2 };
-                      
-                        let incoming_metadata = IncomingTxMetadata {
-                            address: addr.clone(),
-                            value: amt,
-                            memo: memo.clone(), 
-                            incoming_mempool: true,
-                            position: position,
-                        };
-    
-                        wtx.incoming_metadata.push(incoming_metadata);
-                        incoming_mempool_txs.entry(tx.txid()).or_insert_with(Vec::new).push(wtx);
+                    let addr = encode_payment_address(self.config.hrp_sapling_address(), &_to);
+                    let amt = note.value;
+                    let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
+                    
+                    let formatted_memo = LightWallet::memo_str(&Some(memo.clone()));
+                    
+                    let mut existing_txs = incoming_mempool_txs.entry(tx.txid())
+                        .or_insert_with(Vec::new);
+                    
+                    // Überprüfen, ob eine Transaktion mit dem exakt gleichen memo bereits existiert
+                    if existing_txs.iter().any(|tx| tx.incoming_metadata.iter().any(|meta| LightWallet::memo_str(&Some(meta.memo.clone())) == formatted_memo.as_ref().cloned())) {
+                        // Transaktion mit diesem Memo existiert bereits, nichts weiter tun
+                        return;
+                    }
+                    
+                    let position = if formatted_memo.as_ref().map_or(false, |m| m.starts_with('{')) {
+                        0
+                    } else {
+                        existing_txs.iter()
+                            .filter(|tx| !LightWallet::memo_str(&Some(tx.incoming_metadata.iter().last().unwrap().memo.clone())).as_ref().map_or(false, |m| m.starts_with('{')))
+                            .count() as u64 + 1
+                    };
+                    
+                    let incoming_metadata = IncomingTxMetadata {
+                        address: addr.clone(),
+                        value: amt,
+                        memo: memo.clone(), 
+                        incoming_mempool: true,
+                        position: position,
+                    };
+                    
+                    wtx.incoming_metadata.push(incoming_metadata);
+                    existing_txs.push(wtx);
+                    
+                    
     
                         let mut txs = match self.txs.write() {
                             Ok(t) => t,
