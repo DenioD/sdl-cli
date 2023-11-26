@@ -1499,7 +1499,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
             let epk_prime = output.ephemeral_key.as_prime_order(&JUBJUB).unwrap();
             let (note, _to, memo) = match try_sapling_note_decryption(&ivk, &epk_prime, &cmu, &ct) {
                 Some(ret) => ret,
-                None => {println!("note encryption failed");
+                None => {
                 continue;
             }
             };
@@ -1522,6 +1522,7 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                     let mut existing_txs = incoming_mempool_txs.entry(tx.txid())
                         .or_insert_with(Vec::new);
                     
+                    if !formatted_memo.is_none() {
                     // Überprüfen, ob eine Transaktion mit dem exakt gleichen memo bereits existiert
                     if existing_txs.iter().any(|tx| tx.incoming_metadata.iter().any(|meta| LightWallet::memo_str(&Some(meta.memo.clone())) == formatted_memo.as_ref().cloned())) {
                         // Transaktion mit diesem Memo existiert bereits, nichts weiter tun
@@ -1578,7 +1579,61 @@ pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64
                         }
     
                         info!("Successfully added txid");
-                } else {
+                } 
+             else {
+
+                let position = 0;
+
+                let incoming_metadata = IncomingTxMetadata {
+                    address: addr.clone(),
+                    value: amt,
+                    memo: memo.clone(), 
+                    incoming_mempool: true,
+                    position: position,
+                };
+                
+                wtx.incoming_metadata.push(incoming_metadata);
+                existing_txs.push(wtx);
+                
+                
+
+                    let mut txs = match self.txs.write() {
+                        Ok(t) => t,
+                        Err(e) => {
+                            error!("Error acquiring write lock: {}", e);
+                            return;
+                        }
+                    };
+                    // Optional
+                    if let Some(wtx) = txs.get_mut(&tx.txid()) {
+                        wtx.incoming_metadata.push(IncomingTxMetadata {
+                            address: addr.clone(),
+                            value: amt,
+                            memo: memo.clone(),
+                            incoming_mempool: true,
+                            position: position,
+                        });
+                    } else {
+                        let mut new_wtx = WalletTx::new(height, now() as u64, &tx.txid());
+                        new_wtx.incoming_metadata.push(IncomingTxMetadata {
+                            address: addr.clone(),
+                            value: amt,
+                            memo: memo.clone(),
+                            incoming_mempool: true,
+                            position: position,
+                        });
+                        txs.insert(tx.txid(), new_wtx);
+                    }
+
+                    info!("Successfully added txid");
+                }
+
+
+            }
+            
+            
+            
+            else {
                     error!("Not a mempool transaction");
                 }
                  // Mark this Tx as scanned
