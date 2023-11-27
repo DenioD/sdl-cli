@@ -11,6 +11,10 @@ use std::cmp::{max, min};
 use std::io;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter, Error, ErrorKind};
+use tokio::runtime::Runtime;
+use tokio::time::{Duration};
+
+use crate::grpc_client::RawTransaction;
 
 use protobuf::parse_from_bytes;
 
@@ -629,6 +633,7 @@ impl LightClient {
             object!{
                 "address" => zaddress.clone(),
                 "zbalance" => wallet.zbalance(Some(zaddress.clone())),
+                "unconfirmed" => wallet.unconfirmed_zbalance(Some(zaddress.clone())),
                 "verified_zbalance" => wallet.verified_zbalance(Some(zaddress.clone())),
                 "spendable_zbalance" => wallet.spendable_zbalance(Some(zaddress.clone()))
             }
@@ -647,6 +652,7 @@ impl LightClient {
 
         object!{
             "zbalance"           => wallet.zbalance(None),
+            "unconfirmed"        => wallet.unconfirmed_zbalance(None),
             "verified_zbalance"  => wallet.verified_zbalance(None),
             "spendable_zbalance" => wallet.spendable_zbalance(None),
             "tbalance"           => wallet.tbalance(None), 
@@ -940,7 +946,30 @@ impl LightClient {
                 txns
             })
             .collect::<Vec<JsonValue>>();
-
+    
+            // Add the incoming Mempool - incoming_mempool flag is atm useless, but we can use that in future maybe
+            tx_list.extend(
+                wallet.incoming_mempool_txs.read().unwrap().iter().flat_map(|(_, wtxs)| {
+                    wtxs.iter().flat_map(|wtx| {
+                        wtx.incoming_metadata.iter()
+                            .enumerate()
+                            .map(move |(_i, om)| 
+                                object! {
+                                    "block_height" => wtx.block.clone(),
+                                    "datetime"     => wtx.datetime.clone(),
+                                    "position"     => om.position,
+                                    "txid"         => format!("{}", wtx.txid),
+                                    "amount"       => om.value as i64,
+                                    "address"      => om.address.clone(),
+                                    "memo"         => LightWallet::memo_str(&Some(om.memo.clone())),
+                                    "unconfirmed"  => true,
+                                    "incoming_mempool" => true,
+                                }
+                            )
+                    })
+                })
+            );
+  
         // Add in all mempool txns
         tx_list.extend(wallet.mempool_txs.read().unwrap().iter().map( |(_, wtx)| {
             use zcash_primitives::transaction::components::amount::DEFAULT_FEE;
@@ -956,6 +985,7 @@ impl LightClient {
                         "address" => om.address.clone(),
                         "value"   => om.value,
                         "memo"    => LightWallet::memo_str(&Some(om.memo.clone())),
+                        
                 }).collect::<Vec<JsonValue>>();                    
 
             object! {
@@ -1037,6 +1067,47 @@ impl LightClient {
         Ok(array![new_address])
     }
 
+    // Start Mempool-Monitor
+pub fn start_mempool_monitor(lc: Arc<LightClient>) -> Result<(), String> {
+    let config = lc.config.clone();
+    let uri = config.server.clone();
+
+    let (incoming_mempool_tx, incoming_mempool_rx) = std::sync::mpsc::channel::<RawTransaction>();
+
+    // Thread for reveive transactions
+    std::thread::spawn(move || {
+            while let Ok(rtx) = incoming_mempool_rx.recv() {               
+                if let Ok(tx) = Transaction::read(
+                &rtx.data[..])
+           { 
+           let light_wallet_clone = lc.wallet.clone();
+           light_wallet_clone.read().unwrap().scan_full_mempool_tx(&tx, rtx.height as i32, 0, true);
+            }
+    }
+    });
+
+    // Thread mempool monitor
+    std::thread::spawn(move || {
+        let mut rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            loop {
+                let incoming_mempool_tx_clone = incoming_mempool_tx.clone();
+                let send_closure = move |rtx: RawTransaction| {
+                    incoming_mempool_tx_clone.send(rtx).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+                };
+
+                match grpcconnector::monitor_mempool(&uri.clone(), true, send_closure).await {
+                    Ok(_) => info!("Mempool monitor loop successful"),
+                    Err(e) => warn!("Mempool monitor returned {:?}, will restart listening", e),
+                }
+
+                std::thread::sleep(Duration::from_secs(10));
+            }
+        });
+    });
+
+    Ok(())
+}
     /// Convinence function to determine what type of key this is and import it
     pub fn do_import_key(&self, key: String, birthday: u64) -> Result<JsonValue, String> {
         if key.starts_with(self.config.hrp_sapling_private_key()) {

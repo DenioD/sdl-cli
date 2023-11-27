@@ -32,10 +32,11 @@ impl Command for SyncCommand {
 
     fn exec(&self, _args: &[&str], lightclient: &LightClient) -> String {
         match lightclient.do_sync(true) {
-            Ok(j) => j.pretty(2),
-            Err(e) => e
+            Ok(j) => j.pretty(2), 
+            Err(e) => e.to_string() 
         }
     }
+    
 }
 
 struct EncryptionStatusCommand {}
@@ -111,7 +112,6 @@ impl Command for RescanCommand {
         }
     }
 }
-
 
 struct ClearCommand {}
 impl Command for ClearCommand {
@@ -250,7 +250,6 @@ impl Command for BalanceCommand {
     }
 }
 
-
 struct AddressCommand {}
 impl Command for AddressCommand {
     fn help(&self) -> String {
@@ -385,7 +384,6 @@ impl Command for DecryptCommand {
     }
 }
 
-
 struct UnlockCommand {}
 impl Command for UnlockCommand {
     fn help(&self) -> String {
@@ -424,7 +422,6 @@ impl Command for UnlockCommand {
         }.pretty(2)
     }
 }
-
 
 struct LockCommand {}
 impl Command for LockCommand {
@@ -465,7 +462,6 @@ impl Command for LockCommand {
         }.pretty(2)
     }
 }
-
 
 struct SendCommand {}
 impl Command for SendCommand {
@@ -770,19 +766,17 @@ impl Command for HeightCommand {
         }
     }
 
-
-
 struct NewAddressCommand {}
 impl Command for NewAddressCommand {
     fn help(&self)  -> String {
         let mut h = vec![];
         h.push("Create a new address in this wallet");
         h.push("Usage:");
-        h.push("new [z | t]");
+        h.push("new [z | r]");
         h.push("");
         h.push("Example:");
-        h.push("To create a new z address:");
-        h.push("new z");
+        h.push("To create a new zs address:");
+        h.push("new zs");
         h.join("\n")
     }
 
@@ -938,9 +932,6 @@ pub fn do_user_command(cmd: &str, args: &Vec<&str>, lightclient: &LightClient) -
         None      => format!("Unknown command : {}. Type 'help' for a list of commands", cmd)
     }
 }
-
-
-
 
 #[cfg(test)]
 pub mod tests {

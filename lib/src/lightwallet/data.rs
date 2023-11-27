@@ -349,6 +349,49 @@ impl OutgoingTxMetadata {
             memo,
         })
     }
+    
+
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        // Strings are written as len + utf8
+        writer.write_u64::<LittleEndian>(self.address.as_bytes().len() as u64)?;
+        writer.write_all(self.address.as_bytes())?;
+
+        writer.write_u64::<LittleEndian>(self.value)?;
+        writer.write_all(self.memo.as_bytes())
+    }
+}
+#[derive(Debug)]
+pub struct IncomingTxMetadata {
+    pub address: String,
+    pub value  : u64,
+    pub memo   : Memo,
+    pub incoming_mempool: bool,
+    pub position: u64,
+}
+
+impl IncomingTxMetadata {
+    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+        let address_len = reader.read_u64::<LittleEndian>()?;
+        let mut address_bytes = vec![0; address_len as usize];
+        reader.read_exact(&mut address_bytes)?;
+        let address = String::from_utf8(address_bytes).unwrap();
+
+        let value = reader.read_u64::<LittleEndian>()?;
+        let incoming_mempool = true;
+        let position = 0;
+
+        let mut memo_bytes = [0u8; 512];
+        reader.read_exact(&mut memo_bytes)?;
+        let memo = Memo::from_bytes(&memo_bytes).unwrap();
+
+        Ok(IncomingTxMetadata{
+            address,
+            value,
+            memo,
+            incoming_mempool,
+            position,
+        })
+    }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         // Strings are written as len + utf8
@@ -389,6 +432,8 @@ pub struct WalletTx {
     // All outgoing sapling sends to addresses outside this wallet
     pub outgoing_metadata: Vec<OutgoingTxMetadata>,
 
+    pub incoming_metadata: Vec<IncomingTxMetadata>,
+
     // Whether this TxID was downloaded from the server and scanned for Memos
     pub full_tx_scanned: bool,
 }
@@ -408,6 +453,7 @@ impl WalletTx {
             total_shielded_value_spent: 0,
             total_transparent_value_spent: 0,
             outgoing_metadata: vec![],
+            incoming_metadata: vec![],
             full_tx_scanned: false,
         }
     }
@@ -438,6 +484,8 @@ impl WalletTx {
         // Outgoing metadata was only added in version 2
         let outgoing_metadata = Vector::read(&mut reader, |r| OutgoingTxMetadata::read(r))?;
 
+        let incoming_metadata = Vector::read(&mut reader, |r| IncomingTxMetadata::read(r))?;
+
         let full_tx_scanned = reader.read_u8()? > 0;
             
         Ok(WalletTx{
@@ -449,6 +497,7 @@ impl WalletTx {
             total_shielded_value_spent,
             total_transparent_value_spent,
             outgoing_metadata,
+            incoming_metadata,
             full_tx_scanned
         })
     }
@@ -470,6 +519,7 @@ impl WalletTx {
 
         // Write the outgoing metadata
         Vector::write(&mut writer, &self.outgoing_metadata, |w, om| om.write(w))?;
+        Vector::write(&mut writer, &self.incoming_metadata, |w, om| om.write(w))?;
 
         writer.write_u8(if self.full_tx_scanned {1} else {0})?;
 

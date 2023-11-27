@@ -201,13 +201,20 @@ pub fn start_interactive(command_tx: Sender<(String, Vec<String>)>, resp_rx: Rec
     }
 }
 
-
 pub fn command_loop(lightclient: Arc<LightClient>) -> (Sender<(String, Vec<String>)>, Receiver<String>) {
     let (command_tx, command_rx) = channel::<(String, Vec<String>)>();
     let (resp_tx, resp_rx) = channel::<String>();
 
     let lc = lightclient.clone();
     std::thread::spawn(move || {
+         //start mempool_monitor
+         match LightClient::start_mempool_monitor(lc.clone()) {
+            Ok(_) => {},
+            Err(e) => {
+                   
+                error!("Error starting mempool: {:?}", e);
+            }
+        }
         loop {
             match command_rx.recv_timeout(std::time::Duration::from_secs(5 * 60)) {
                 Ok((cmd, args)) => {

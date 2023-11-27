@@ -53,9 +53,6 @@ use zcash_primitives::{
     
 };
 
-
-
-
 use crate::lightclient::{LightClientConfig};
 
 mod data;
@@ -65,7 +62,7 @@ mod address;
 mod prover;
 mod walletzkey;
 
-use data::{BlockData, WalletTx, Utxo, SaplingNoteData, SpendableNote, OutgoingTxMetadata};
+use data::{BlockData, WalletTx, Utxo, SaplingNoteData, SpendableNote, OutgoingTxMetadata, IncomingTxMetadata};
 use extended_key::{KeyIndex, ExtendedPrivKey};
 use walletzkey::{WalletZKey, WalletTKey, WalletZKeyType};
 
@@ -102,7 +99,7 @@ impl ToBase58Check for [u8] {
         payload.extend_from_slice(self);
         payload.extend_from_slice(suffix);
 
-        let mut checksum = double_sha256(&payload);
+        let checksum = double_sha256(&payload);
         payload.append(&mut checksum[..4].to_vec());
         payload.to_base58()
     }
@@ -135,6 +132,7 @@ pub struct LightWallet {
     // Transactions that are only in the mempool, but haven't been confirmed yet. 
     // This is not stored to disk. 
     pub mempool_txs: Arc<RwLock<HashMap<TxId, WalletTx>>>,
+    pub incoming_mempool_txs: Arc<RwLock<HashMap<TxId, Vec<WalletTx>>>>,
 
     // The block at which this wallet was born. Rescans
     // will start from here.
@@ -199,7 +197,7 @@ impl LightWallet {
     let zdustextfvk  = ExtendedFullViewingKey::from(&zdustextsk);
     let zdustaddress = zdustextfvk.default_address().unwrap().1;
 
-    (zdustaddress)
+    zdustaddress
 }
 
     pub fn is_shielded_address(addr: &String, config: &LightClientConfig) -> bool {
@@ -258,6 +256,7 @@ impl LightWallet {
             blocks:      Arc::new(RwLock::new(vec![])),
             txs:         Arc::new(RwLock::new(HashMap::new())),
             mempool_txs: Arc::new(RwLock::new(HashMap::new())),
+            incoming_mempool_txs: Arc::new(RwLock::new(HashMap::new())),
             config:      config.clone(),
             birthday:    latest_block,
             total_scan_duration: Arc::new(RwLock::new(vec![Duration::new(0, 0)])),
@@ -427,6 +426,7 @@ impl LightWallet {
             blocks:      Arc::new(RwLock::new(blocks)),
             txs:         Arc::new(RwLock::new(txs)),
             mempool_txs: Arc::new(RwLock::new(HashMap::new())),
+            incoming_mempool_txs: Arc::new(RwLock::new(HashMap::new())),
             config:      config.clone(),
             birthday,
             total_scan_duration: Arc::new(RwLock::new(vec![Duration::new(0, 0)])),
@@ -749,6 +749,7 @@ impl LightWallet {
         self.blocks.write().unwrap().clear();
         self.txs.write().unwrap().clear();
         self.mempool_txs.write().unwrap().clear();
+        self.incoming_mempool_txs.write().unwrap().clear();
     }
 
     pub fn set_initial_block(&self, height: i32, hash: &str, sapling_tree: &str) -> bool {
@@ -1048,27 +1049,36 @@ impl LightWallet {
     }
 
     pub fn zbalance(&self, addr: Option<String>) -> u64 {
-        self.txs.read().unwrap() 
+        let unconfirmed_balance = self.unconfirmed_zbalance(addr.clone());
+
+        let confirmed_balance = self.txs.read().unwrap()
             .values()
-            .map (|tx| {
+            .map(|tx| {
                 tx.notes.iter()
-                    .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
-                        match addr.clone() {
-                            Some(a) => a == encode_payment_address(
-                                                self.config.hrp_sapling_address(),
-                                                &nd.extfvk.fvk.vk
-                                                    .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
-                                            ),
-                            None    => true
+                    .filter(|nd| {
+                        match addr.as_ref() {
+                            Some(a) => *a == encode_payment_address(
+                                            self.config.hrp_sapling_address(),
+                                            &nd.extfvk.fvk.vk
+                                                .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
+                                        ),
+                            None => true
                         }
                     })
-                    .map(|nd| if nd.spent.is_none() { nd.note.value } else { 0 })
+                    .map(|nd| {
+                        if nd.spent.is_none() && nd.unconfirmed_spent.is_none() {
+                            nd.note.value
+                        } else {
+                            0
+                        }
+                    })
                     .sum::<u64>()
             })
-            .sum::<u64>() as u64
-
+            .sum::<u64>();
+    
+        confirmed_balance + unconfirmed_balance
     }
-
+    
     // Get all (unspent) utxos. Unconfirmed spent utxos are included
     pub fn get_utxos(&self) -> Vec<Utxo> {
         let txs = self.txs.read().unwrap();
@@ -1109,8 +1119,8 @@ impl LightWallet {
                         .iter()
                         .filter(|nd| nd.spent.is_none() && nd.unconfirmed_spent.is_none())
                         .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
-                            match addr.clone() {
-                                Some(a) => a == encode_payment_address(
+                            match addr.as_ref() {
+                                Some(a) => *a == encode_payment_address(
                                                     self.config.hrp_sapling_address(),
                                                     &nd.extfvk.fvk.vk
                                                         .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
@@ -1144,8 +1154,8 @@ impl LightWallet {
                             self.have_spendingkey_for_extfvk(&nd.extfvk)
                         })
                         .filter(|nd| {  // TODO, this whole section is shared with verified_balance. Refactor it. 
-                            match addr.clone() {
-                                Some(a) => a == encode_payment_address(
+                            match addr.as_ref() {
+                                Some(a) => *a == encode_payment_address(
                                                     self.config.hrp_sapling_address(),
                                                     &nd.extfvk.fvk.vk
                                                         .into_payment_address(nd.diversifier, &JUBJUB).unwrap()
@@ -1162,6 +1172,30 @@ impl LightWallet {
             .sum::<u64>() as u64
     }
 
+    pub fn unconfirmed_zbalance(&self, addr: Option<String>) -> u64 {   
+        self.incoming_mempool_txs.read().unwrap()
+            .values()
+            .flat_map(|txs| txs.iter())
+            .map(|tx| {
+                tx.incoming_metadata.iter()
+                    .filter(|meta| {
+                        match addr.as_ref() {
+                            Some(a) => {
+ 
+                                a == &meta.address
+                            },
+                            None => true
+                        }
+                    })
+                    .map(|meta| {
+
+                        meta.value
+                    })
+                    .sum::<u64>()
+            })
+            .sum::<u64>()
+    }
+    
     pub fn have_spendingkey_for_extfvk(&self, extfvk: &ExtendedFullViewingKey) -> bool {
         match self.zkeys.read().unwrap().iter().find(|zk| zk.extfvk == *extfvk) {
             None => false,
@@ -1275,224 +1309,365 @@ impl LightWallet {
         }
     }
 
-    // Scan the full Tx and update memos for incoming shielded transactions.
-    pub fn scan_full_tx(&self, tx: &Transaction, height: i32, datetime: u64) {
-        let mut total_transparent_spend: u64 = 0;
-
-        // Scan all the inputs to see if we spent any transparent funds in this tx
-        for vin in tx.vin.iter() {    
-            // Find the txid in the list of utxos that we have.
-            let txid = TxId {0: vin.prevout.hash};
-            match self.txs.write().unwrap().get_mut(&txid) {
-                Some(wtx) => {
-                    //println!("Looking for {}, {}", txid, vin.prevout.n);
-
-                    // One of the tx outputs is a match
-                    let spent_utxo = wtx.utxos.iter_mut()
-                        .find(|u| u.txid == txid && u.output_index == (vin.prevout.n as u64));
-
-                    match spent_utxo {
-                        Some(su) => {
-                            info!("Spent utxo from {} was spent in {}", txid, tx.txid());
-                            su.spent = Some(tx.txid().clone());
-                            su.unconfirmed_spent = None;
-
-                            total_transparent_spend += su.value;
-                        },
-                        _ => {}
-                    }
-                },
-                _ => {}
-            };
-        }
-
-        if total_transparent_spend > 0 {
-            // Update the WalletTx. Do it in a short scope because of the write lock.
-            let mut txs = self.txs.write().unwrap();
-
-            if !txs.contains_key(&tx.txid()) {
-                let tx_entry = WalletTx::new(height, datetime, &tx.txid());
-                txs.insert(tx.txid().clone(), tx_entry);
-            }
-            
-            txs.get_mut(&tx.txid()).unwrap()
-                .total_transparent_value_spent = total_transparent_spend;
-        }
-
-        // Scan for t outputs
-        let all_taddresses = self.tkeys.read().unwrap().iter()
-                                .map(|wtx| wtx.address.clone())
-                                .map(|a| a.clone())
-                                .collect::<Vec<_>>();
-        for address in all_taddresses {
-            for (n, vout) in tx.vout.iter().enumerate() {
-                match vout.script_pubkey.address() {
-                    Some(TransparentAddress::PublicKey(hash)) => {
-                        if address == hash.to_base58check(&self.config.base58_pubkey_address(), &[]) {
-                            // This is our address. Add this as an output to the txid
-                            self.add_toutput_to_wtx(height, datetime, &tx.txid(), &vout, n as u64);
-
-                            // Ensure that we add any new HD addresses
-                            self.ensure_hd_taddresses(&address);
-                        }
+// Scan the full Tx and update memos for incoming shielded transactions.
+pub fn scan_full_tx(&self, tx: &Transaction, height: i32, datetime: u64) {
+    let mut total_transparent_spend: u64 = 0;
+    // Scan all the inputs to see if we spent any transparent funds in this tx
+    for vin in tx.vin.iter() {    
+        // Find the txid in the list of utxos that we have.
+        let txid = TxId {0: vin.prevout.hash};
+        match self.txs.write().unwrap().get_mut(&txid) {
+            Some(wtx) => {
+                //println!("Looking for {}, {}", txid, vin.prevout.n);
+                // One of the tx outputs is a match
+                let spent_utxo = wtx.utxos.iter_mut()
+                    .find(|u| u.txid == txid && u.output_index == (vin.prevout.n as u64));
+                match spent_utxo {
+                    Some(su) => {
+                        info!("Spent utxo from {} was spent in {}", txid, tx.txid());
+                        su.spent = Some(tx.txid().clone());
+                        su.unconfirmed_spent = None;
+                        total_transparent_spend += su.value;
                     },
                     _ => {}
                 }
+            },
+            _ => {}
+        };
+    }
+    if total_transparent_spend > 0 {
+        // Update the WalletTx. Do it in a short scope because of the write lock.
+        let mut txs = self.txs.write().unwrap();
+        if !txs.contains_key(&tx.txid()) {
+            let tx_entry = WalletTx::new(height, datetime, &tx.txid());
+            txs.insert(tx.txid().clone(), tx_entry);
+        }
+        
+        txs.get_mut(&tx.txid()).unwrap()
+            .total_transparent_value_spent = total_transparent_spend;
+    }
+    // Scan for t outputs
+    let all_taddresses = self.tkeys.read().unwrap().iter()
+                            .map(|wtx| wtx.address.clone())
+                            .map(|a| a.clone())
+                            .collect::<Vec<_>>();
+    for address in all_taddresses {
+        for (n, vout) in tx.vout.iter().enumerate() {
+            match vout.script_pubkey.address() {
+                Some(TransparentAddress::PublicKey(hash)) => {
+                    if address == hash.to_base58check(&self.config.base58_pubkey_address(), &[]) {
+                        // This is our address. Add this as an output to the txid
+                        self.add_toutput_to_wtx(height, datetime, &tx.txid(), &vout, n as u64);
+                        // Ensure that we add any new HD addresses
+                        self.ensure_hd_taddresses(&address);
+                    }
+                },
+                _ => {}
             }
         }
-
-        {
-            let total_shielded_value_spent = self.txs.read().unwrap().get(&tx.txid()).map_or(0, |wtx| wtx.total_shielded_value_spent);
-            if total_transparent_spend + total_shielded_value_spent > 0 {
-                // We spent money in this Tx, so grab all the transparent outputs (except ours) and add them to the
-                // outgoing metadata
-
-                // Collect our t-addresses
-                let wallet_taddrs = self.tkeys.read().unwrap().iter()
-                        .map(|wtx| wtx.address.clone())
-                        .map(|a| a.clone())
-                        .collect::<HashSet<String>>();
-
-                for vout in tx.vout.iter() {
-                    let taddr = self.address_from_pubkeyhash(vout.script_pubkey.address());
-
-                    if taddr.is_some() && !wallet_taddrs.contains(&taddr.clone().unwrap()) {
-                        let taddr = taddr.unwrap();
-
-                        // Add it to outgoing metadata
-                        let mut txs = self.txs.write().unwrap();
-                        if txs.get(&tx.txid()).unwrap().outgoing_metadata.iter()
-                            .find(|om|
-                                om.address == taddr && Amount::from_u64(om.value).unwrap() == vout.value)
-                            .is_some() {
-                            warn!("Duplicate outgoing metadata");
+    }
+    {
+        let total_shielded_value_spent = self.txs.read().unwrap().get(&tx.txid()).map_or(0, |wtx| wtx.total_shielded_value_spent);
+        if total_transparent_spend + total_shielded_value_spent > 0 {
+            // We spent money in this Tx, so grab all the transparent outputs (except ours) and add them to the
+            // outgoing metadata
+            // Collect our t-addresses
+            let wallet_taddrs = self.tkeys.read().unwrap().iter()
+                    .map(|wtx| wtx.address.clone())
+                    .map(|a| a.clone())
+                    .collect::<HashSet<String>>();
+            for vout in tx.vout.iter() {
+                let taddr = self.address_from_pubkeyhash(vout.script_pubkey.address());
+                if taddr.is_some() && !wallet_taddrs.contains(&taddr.clone().unwrap()) {
+                    let taddr = taddr.unwrap();
+                    // Add it to outgoing metadata
+                    let mut txs = self.txs.write().unwrap();
+                    if txs.get(&tx.txid()).unwrap().outgoing_metadata.iter()
+                        .find(|om|
+                            om.address == taddr && Amount::from_u64(om.value).unwrap() == vout.value)
+                        .is_some() {
+                        warn!("Duplicate outgoing metadata");
+                        continue;
+                    }
+                    // Write the outgoing metadata
+                    txs.get_mut(&tx.txid()).unwrap()
+                        .outgoing_metadata
+                        .push(OutgoingTxMetadata{
+                            address: taddr,
+                            value: vout.value.into(),
+                            memo: Memo::default(),
+                        });
+                }
+            }
+        }
+    }
+    // Scan shielded sapling outputs to see if anyone of them is us, and if it is, extract the memo
+    for output in tx.shielded_outputs.iter() {
+        let ivks: Vec<_> = self.zkeys.read().unwrap().iter()
+            .map(|zk| zk.extfvk.fvk.vk.ivk()
+            ).collect();
+        let cmu = output.cmu;
+        let ct  = output.enc_ciphertext;
+        // Search all of our keys
+        for ivk in ivks {
+            let epk_prime = output.ephemeral_key.as_prime_order(&JUBJUB).unwrap();
+            let (note, _to, memo) = match try_sapling_note_decryption(&ivk, &epk_prime, &cmu, &ct) {
+                Some(ret) => ret,
+                None => continue,
+            };
+            if memo.to_utf8().is_some() {
+                // info!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
+                // Do it in a short scope because of the write lock.   
+                let mut txs = self.txs.write().unwrap();
+                   // Update memo if we have this Tx. 
+                   match txs.get_mut(&tx.txid())
+                   .and_then(|t| {
+                       t.notes.iter_mut().find(|nd| nd.note == note)
+                   }) {
+                    None => {
+                        info!("No txid matched for incoming sapling funds while updating memo"); 
+                        ()
+                    },
+                       Some(nd) => {
+                           nd.memo = Some(memo)
+                       }
+                   }
+            }
+        }
+        // Also scan the output to see if it can be decoded with our OutgoingViewKey
+        // If it can, then we sent this transaction, so we should be able to get
+        // the memo and value for our records
+        // First, collect all our z addresses, to check for change
+        // Collect z addresses
+        let z_addresses = self.zkeys.read().unwrap().iter().map( |zk| {
+            encode_payment_address(self.config.hrp_sapling_address(), &zk.zaddress)
+        }).collect::<HashSet<String>>();
+        // Search all ovks that we have
+        let ovks: Vec<_> = self.zkeys.read().unwrap().iter()
+        .map(|zk| zk.extfvk.fvk.ovk.clone())
+        .collect();
+        for ovk in ovks {
+            match try_sapling_output_recovery(
+                &ovk,
+                &output.cv, 
+                &output.cmu, 
+                &output.ephemeral_key.as_prime_order(&JUBJUB).unwrap(), 
+                &output.enc_ciphertext,
+                &output.out_ciphertext) {
+                    Some((note, payment_address, memo)) => {
+                        let address = encode_payment_address(self.config.hrp_sapling_address(), 
+                                        &payment_address);
+                         // Check if this is change, and if it also doesn't have a memo, don't add 
+                        // to the outgoing metadata. 
+                        // If this is change (i.e., funds sent to ourself) AND has a memo, then
+                        // presumably the users is writing a memo to themself, so we will add it to 
+                        // the outgoing metadata, even though it might be confusing in the UI, but hopefully
+                        // the user can make sense of it. 
+                        if z_addresses.contains(&address) && memo.to_utf8().is_none() {
                             continue;
                         }
-
-                        // Write the outgoing metadata
-                        txs.get_mut(&tx.txid()).unwrap()
-                            .outgoing_metadata
-                            .push(OutgoingTxMetadata{
-                                address: taddr,
-                                value: vout.value.into(),
-                                memo: Memo::default(),
-                            });
-                    }
-                }
-            }
-        }
-
-        // Scan shielded sapling outputs to see if anyone of them is us, and if it is, extract the memo
-        for output in tx.shielded_outputs.iter() {
-            let ivks: Vec<_> = self.zkeys.read().unwrap().iter()
-                .map(|zk| zk.extfvk.fvk.vk.ivk()
-                ).collect();
-
-            let cmu = output.cmu;
-            let ct  = output.enc_ciphertext;
-
-            // Search all of our keys
-            for ivk in ivks {
-                let epk_prime = output.ephemeral_key.as_prime_order(&JUBJUB).unwrap();
-
-                let (note, _to, memo) = match try_sapling_note_decryption(&ivk, &epk_prime, &cmu, &ct) {
-                    Some(ret) => ret,
-                    None => continue,
-                };
-
-                if memo.to_utf8().is_some() {
-                    // info!("A sapling note was sent to wallet in {} that had a memo", tx.txid());
-
-                    // Do it in a short scope because of the write lock.   
-                    let mut txs = self.txs.write().unwrap();
-                       // Update memo if we have this Tx. 
-                       match txs.get_mut(&tx.txid())
-                       .and_then(|t| {
-                           t.notes.iter_mut().find(|nd| nd.note == note)
-                       }) {
-                        None => {
-                            info!("No txid matched for incoming sapling funds while updating memo"); 
-                            ()
-                        },
-                           Some(nd) => {
-                               nd.memo = Some(memo)
-                           }
-                       }
-                }
-            }
-
-            // Also scan the output to see if it can be decoded with our OutgoingViewKey
-            // If it can, then we sent this transaction, so we should be able to get
-            // the memo and value for our records
-
-            // First, collect all our z addresses, to check for change
-            // Collect z addresses
-            let z_addresses = self.zkeys.read().unwrap().iter().map( |zk| {
-                encode_payment_address(self.config.hrp_sapling_address(), &zk.zaddress)
-            }).collect::<HashSet<String>>();
-
-            // Search all ovks that we have
-            let ovks: Vec<_> = self.zkeys.read().unwrap().iter()
-            .map(|zk| zk.extfvk.fvk.ovk.clone())
-            .collect();
-
-            for ovk in ovks {
-                match try_sapling_output_recovery(
-                    &ovk,
-                    &output.cv, 
-                    &output.cmu, 
-                    &output.ephemeral_key.as_prime_order(&JUBJUB).unwrap(), 
-                    &output.enc_ciphertext,
-                    &output.out_ciphertext) {
-                        Some((note, payment_address, memo)) => {
-                            let address = encode_payment_address(self.config.hrp_sapling_address(), 
-                                            &payment_address);
-
-                             // Check if this is change, and if it also doesn't have a memo, don't add 
-                            // to the outgoing metadata. 
-                            // If this is change (i.e., funds sent to ourself) AND has a memo, then
-                            // presumably the users is writing a memo to themself, so we will add it to 
-                            // the outgoing metadata, even though it might be confusing in the UI, but hopefully
-                            // the user can make sense of it. 
-                            if z_addresses.contains(&address) && memo.to_utf8().is_none() {
+                        // Update the WalletTx 
+                        // Do it in a short scope because of the write lock.
+                        {
+                            info!("A sapling output was sent in {}", tx.txid());
+                            let mut txs = self.txs.write().unwrap();
+                            if txs.get(&tx.txid()).unwrap().outgoing_metadata.iter()
+                                    .find(|om| om.address == address && om.value == note.value  && om.memo == memo)
+                                    .is_some() {
+                                warn!("Duplicate outgoing metadata");
                                 continue;
                             }
-
-                            // Update the WalletTx 
-                            // Do it in a short scope because of the write lock.
-                            {
-                                info!("A sapling output was sent in {}", tx.txid());
-
-                                let mut txs = self.txs.write().unwrap();
-                                if txs.get(&tx.txid()).unwrap().outgoing_metadata.iter()
-                                        .find(|om| om.address == address && om.value == note.value  && om.memo == memo)
-                                        .is_some() {
-                                    warn!("Duplicate outgoing metadata");
-                                    continue;
-                                }
-                                
-                                // Write the outgoing metadata
-                                txs.get_mut(&tx.txid()).unwrap()
-                                    .outgoing_metadata
-                                    .push(OutgoingTxMetadata{
-                                        address, value: note.value, memo,
-                                    });
-                            }
-                        },
-                        None => {}
-                };
-            }
-        }
-
-        // Mark this Tx as scanned
-        {
-            let mut txs = self.txs.write().unwrap();
-            match txs.get_mut(&tx.txid()) {
-                Some(wtx) => wtx.full_tx_scanned = true,
-                None => {},
+                            
+                            // Write the outgoing metadata
+                            txs.get_mut(&tx.txid()).unwrap()
+                                .outgoing_metadata
+                                .push(OutgoingTxMetadata{
+                                    address, value: note.value, memo,
+                                });
+                        }
+                    },
+                    None => {}
             };
         }
     }
+    // Mark this Tx as scanned
+    {
+        let mut txs = self.txs.write().unwrap();
+        match txs.get_mut(&tx.txid()) {
+            Some(wtx) => wtx.full_tx_scanned = true,
+            None => {},
+        };
+    }
+}
+
+pub fn scan_full_mempool_tx(&self, tx: &Transaction, height: i32, _datetime: u64, mempool_transaction: bool) {
+    if tx.shielded_outputs.is_empty() {
+        error!("Something went wrong, there are no shielded outputs");
+        return;
+    }
+
+    for output in tx.shielded_outputs.iter() {
+        let ivks: Vec<_> = self.zkeys.read().unwrap().iter()
+            .map(|zk| zk.extfvk.fvk.vk.ivk())
+            .collect();
+        
+        let cmu = output.cmu;
+        let ct = output.enc_ciphertext;
+
+        // Search all of our keys
+        for ivk in ivks {
+            let epk_prime = output.ephemeral_key.as_prime_order(&JUBJUB).unwrap();
+            let (note, _to, memo) = match try_sapling_note_decryption(&ivk, &epk_prime, &cmu, &ct) {
+                Some(ret) => ret,
+                None => continue,
+            };
+
+            if mempool_transaction {    
+                let mut incoming_mempool_txs = match self.incoming_mempool_txs.write() {
+                    Ok(txs) => txs,
+                    Err(e) => {
+                        error!("Error acquiring write lock: {}", e);
+                        return;
+                    }
+                };
+
+                let addr = encode_payment_address(self.config.hrp_sapling_address(), &_to);
+                let amt = note.value;
+                let mut wtx = WalletTx::new(height, now() as u64, &tx.txid());
+                let formatted_memo = LightWallet::memo_str(&Some(memo.clone()));
+                let existing_txs = incoming_mempool_txs.entry(tx.txid())
+                    .or_insert_with(Vec::new);
+
+                    if formatted_memo.as_ref().map_or(false, |m| !m.is_empty()) {
+                    // Check if a transaction with the exact same memo already exists
+                    if existing_txs.iter().any(|tx| tx.incoming_metadata.iter().any(|meta| LightWallet::memo_str(&Some(meta.memo.clone())) == formatted_memo.as_ref().cloned())) {
+                        // Transaction with this memo already exists, do nothing
+                        return;
+                    }
+
+                    let position = if formatted_memo.as_ref().map_or(false, |m| m.starts_with('{')) {
+                        1
+                    } else {
+                        existing_txs.iter()
+                            .filter(|tx| !LightWallet::memo_str(&Some(tx.incoming_metadata.iter().last().unwrap().memo.clone())).as_ref().map_or(false, |m| m.starts_with('{')))
+                            .count() as u64 + 2
+                    };
+
+                    let incoming_metadata = IncomingTxMetadata {
+                        address: addr.clone(),
+                        value: amt,
+                        memo: memo.clone(), 
+                        incoming_mempool: true,
+                        position: position,
+                    };
+
+                    wtx.incoming_metadata.push(incoming_metadata);
+                    existing_txs.push(wtx);
+
+                    let mut txs = match self.txs.write() {
+                        Ok(t) => t,
+                        Err(e) => {
+                            error!("Error acquiring write lock: {}", e);
+                            return;
+                        }
+                    };
+
+                    if let Some(wtx) = txs.get_mut(&tx.txid()) {
+                        wtx.incoming_metadata.push(IncomingTxMetadata {
+                            address: addr.clone(),
+                            value: amt,
+                            memo: memo.clone(),
+                            incoming_mempool: true,
+                            position: position,
+                        });
+                    } else {
+                        let mut new_wtx = WalletTx::new(height, now() as u64, &tx.txid());
+                        new_wtx.incoming_metadata.push(IncomingTxMetadata {
+                            address: addr.clone(),
+                            value: amt,
+                            memo: memo.clone(),
+                            incoming_mempool: true,
+                            position: position,
+                        });
+                        txs.insert(tx.txid(), new_wtx);
+                    }
+
+                    info!("Successfully added txid with memo");
+                } else {
+                    let position = 0;
+
+                    // Check if txid already exists in the hashmap
+                    let txid_exists = match self.txs.read() {
+                        Ok(t) => t.contains_key(&tx.txid()),
+                        Err(e) => {
+                            error!("Error acquiring read lock: {}", e);
+                            return;
+                        }
+                    };
+
+                    if txid_exists {
+                        // If txid already exists, do not process further
+                        info!("Txid already exists, not adding");
+                        return;
+                    }
+
+                    let incoming_metadata = IncomingTxMetadata {
+                        address: addr.clone(),
+                        value: amt,
+                        memo: memo.clone(), 
+                        incoming_mempool: true,
+                        position: position,
+                    };
+
+                    wtx.incoming_metadata.push(incoming_metadata);
+                    existing_txs.push(wtx);
+
+                    let mut txs = match self.txs.write() {
+                        Ok(t) => t,
+                        Err(e) => {
+                            error!("Error acquiring write lock: {}", e);
+                            return;
+                        }
+                    };
+
+                    if let Some(wtx) = txs.get_mut(&tx.txid()) {
+                        wtx.incoming_metadata.push(IncomingTxMetadata {
+                            address: addr.clone(),
+                            value: amt,
+                            memo: memo.clone(),
+                            incoming_mempool: true,
+                            position: position,
+                        });
+                    } else {
+                        let mut new_wtx = WalletTx::new(height, now() as u64, &tx.txid());
+                        new_wtx.incoming_metadata.push(IncomingTxMetadata {
+                            address: addr.clone(),
+                            value: amt,
+                            memo: memo.clone(),
+                            incoming_mempool: true,
+                            position: position,
+                        });
+                        txs.insert(tx.txid(), new_wtx);
+                    }
+
+                    info!("Successfully added txid");
+                }
+            } else {
+                info!("Not a mempool transaction");
+            }
+
+            // Mark this Tx as scanned
+            {
+                let mut txs = self.txs.write().unwrap();
+                match txs.get_mut(&tx.txid()) {
+                    Some(wtx) => wtx.full_tx_scanned = true,
+                    None => {},
+                };
+            }
+        }
+    }
+}
+   
 
     // Invalidate all blocks including and after "at_height".
     // Returns the number of blocks invalidated
@@ -1981,6 +2156,7 @@ impl LightWallet {
         {
             // Cleanup mempool tx after adding a block, to remove all txns that got mined
             self.cleanup_mempool();
+            self.cleanup_incoming_mempool();
         }
 
         // Print info about the block every 10,000 blocks
@@ -1999,7 +2175,7 @@ impl LightWallet {
         consensus_branch_id: u32,
         spend_params: &[u8],
         output_params: &[u8],
-        transparent_only: bool,
+        _transparent_only: bool,
         tos: Vec<(&str, u64, Option<String>)>,
         broadcast_fn: F
     ) -> Result<(String, Vec<u8>), String> 
@@ -2311,6 +2487,27 @@ impl LightWallet {
             });
         }
     }
+
+    pub fn cleanup_incoming_mempool(&self) {
+        const DEFAULT_TX_EXPIRY_DELTA: i32 = 20;
+        let current_height = self.blocks.read().unwrap().last().map(|b| b.height).unwrap_or(0);
+    
+        {
+            // Remove all expired Txns
+            self.incoming_mempool_txs.write().unwrap().retain(|_, wtxs| {
+                wtxs.retain(|wtx| current_height < (wtx.block + DEFAULT_TX_EXPIRY_DELTA));
+                !wtxs.is_empty() // Behalte den Eintrag nur, wenn nicht alle Transaktionen abgelaufen sind
+            });
+        }
+    
+        {
+            // Remove all txns where the txid is added to the wallet directly
+            self.incoming_mempool_txs.write().unwrap().retain(|txid, _| {
+                self.txs.read().unwrap().get(txid).is_none()
+            });
+        }
+    }
+    
 }
 
 #[cfg(test)]
